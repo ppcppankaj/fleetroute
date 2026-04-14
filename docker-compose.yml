@@ -113,12 +113,12 @@ services:
       PORT_TELTONIKA_TCP: 5027
       PORT_TELTONIKA_UDP: 5028
     ports:
-      - "5001:5001"   # GT06
-      - "5002:5002"   # TK103
-      - "5003:5003"   # JT808
-      - "5004:5004"   # AIS140
-      - "5027:5027"   # Teltonika TCP
-      - "5028:5028/udp" # Teltonika UDP
+      - "15001:5001"   # GT06
+      - "15002:5002"   # TK103
+      - "15003:5003"   # JT808
+      - "15004:5004"   # AIS140
+      - "15027:5027"   # Teltonika TCP
+      - "15028:5028/udp" # Teltonika UDP
     networks:
       - gpsgo
     depends_on:

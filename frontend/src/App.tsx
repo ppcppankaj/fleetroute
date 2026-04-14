@@ -5,6 +5,8 @@ import LoginPage from './features/auth/LoginPage'
 import LiveTracking from './features/tracking/LiveTracking'
 import FleetPage from './features/fleet/FleetPage'
 import AlertsPage from './features/alerts/AlertsPage'
+import { ReportsPage } from './features/reports/ReportsPage'
+import { SettingsPage } from './features/settings/SettingsPage'
 
 export default function App() {
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated)
@@ -25,6 +27,8 @@ export default function App() {
         <Route path="/tracking" element={<LiveTracking />} />
         <Route path="/fleet" element={<FleetPage />} />
         <Route path="/alerts" element={<AlertsPage />} />
+        <Route path="/reports" element={<ReportsPage />} />
+        <Route path="/settings" element={<SettingsPage />} />
         <Route path="*" element={<Navigate to="/tracking" replace />} />
       </Route>
     </Routes>

@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/redis/go-redis/v9"
 	"go.uber.org/zap"
 
 	"gpsgo/pkg/protocol"
@@ -52,14 +54,27 @@ type Enricher func(ctx context.Context, rec *EnrichedRecord)
 type Pipeline struct {
 	enrichers []Enricher
 	logger    *zap.Logger
+
+	tripMachine *TripMachine
+	geoEngine   *GeofenceEngine
+	alertsEval  *AlertEvaluator
+	notifMgr    *NotificationManager
 }
 
 // NewPipeline constructs the enrichment pipeline.
-func NewPipeline(logger *zap.Logger) *Pipeline {
-	p := &Pipeline{logger: logger}
+func NewPipeline(pool *pgxpool.Pool, rdb *redis.Client, logger *zap.Logger) *Pipeline {
+	p := &Pipeline{
+		logger:      logger,
+		tripMachine: NewTripMachine(pool, rdb, logger),
+		geoEngine:   NewGeofenceEngine(pool, logger),
+		alertsEval:  NewAlertEvaluator(pool, logger),
+		notifMgr:    NewNotificationManager(logger),
+	}
 	p.enrichers = []Enricher{
 		p.enrichIOFields,
 		p.enrichTripState,
+		p.enrichGeofence,
+		p.enrichAlerts,
 	}
 	return p
 }
@@ -144,8 +159,16 @@ func (p *Pipeline) enrichIOFields(_ context.Context, rec *EnrichedRecord) {
 	}
 }
 
-func (p *Pipeline) enrichTripState(_ context.Context, _ *EnrichedRecord) {
-	// Full state machine persisted in Redis — Phase 2
+func (p *Pipeline) enrichTripState(ctx context.Context, rec *EnrichedRecord) {
+	p.tripMachine.Process(ctx, rec)
+}
+
+func (p *Pipeline) enrichGeofence(ctx context.Context, rec *EnrichedRecord) {
+	p.geoEngine.Check(ctx, rec)
+}
+
+func (p *Pipeline) enrichAlerts(ctx context.Context, rec *EnrichedRecord) {
+	p.alertsEval.Evaluate(ctx, rec)
 }
 
 

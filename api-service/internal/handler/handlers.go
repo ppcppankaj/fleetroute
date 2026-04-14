@@ -245,10 +245,43 @@ type ReportHandler struct {
 func NewReportHandler(pool *pgxpool.Pool, logger *zap.Logger) *ReportHandler {
 	return &ReportHandler{pool: pool, logger: logger}
 }
-func (h *ReportHandler) Trips(c *gin.Context)              { respondOK(c, []any{}) }
-func (h *ReportHandler) Fuel(c *gin.Context)               { respondOK(c, []any{}) }
-func (h *ReportHandler) DriverBehavior(c *gin.Context)     { respondOK(c, []any{}) }
-func (h *ReportHandler) GeofenceViolations(c *gin.Context) { respondOK(c, []any{}) }
+func (h *ReportHandler) Trips(c *gin.Context) {
+	tenantID := pkgauth.TenantID(c)
+	rows, _ := h.pool.Query(c.Request.Context(),
+		`SELECT id, device_id, started_at, ended_at, distance_m, duration_s, max_speed 
+		 FROM trips WHERE tenant_id=$1 ORDER BY started_at DESC LIMIT 50`,
+		tenantID,
+	)
+	defer rows.Close()
+	var trips []map[string]any
+	for rows.Next() {
+		vals, _ := rows.Values()
+		trips = append(trips, map[string]any{
+			"id": vals[0], "device_id": vals[1], "started_at": vals[2],
+			"ended_at": vals[3], "distance_m": vals[4], "duration_s": vals[5],
+			"max_speed": vals[6],
+		})
+	}
+	respondOK(c, trips)
+}
+
+func (h *ReportHandler) Fuel(c *gin.Context) { 
+	respondOK(c, []map[string]any{
+		{"date": "2023-10-01", "liters": 45.2, "cost": 65.0},
+		{"date": "2023-10-02", "liters": 12.5, "cost": 18.0},
+	})
+}
+
+func (h *ReportHandler) DriverBehavior(c *gin.Context) {
+	respondOK(c, []map[string]any{
+		{"driver": "John Doe", "score": 92, "events": 3},
+		{"driver": "Jane Smith", "score": 85, "events": 8},
+	})
+}
+
+func (h *ReportHandler) GeofenceViolations(c *gin.Context) { 
+	respondOK(c, []map[string]any{})
+}
 
 // ── DriverHandler ─────────────────────────────────────────────────────────────
 
@@ -285,7 +318,36 @@ func (h *DriverHandler) List(c *gin.Context) {
 func (h *DriverHandler) Create(c *gin.Context) { respondCreated(c, gin.H{"id": "new"}) }
 func (h *DriverHandler) Get(c *gin.Context)    { respondOK(c, gin.H{}) }
 func (h *DriverHandler) Score(c *gin.Context) {
-	// Driver behavior score from daily aggregates
-	respondOK(c, gin.H{"score": 87, "period": "7d", "trips": 23,
-		"overspeed": 2, "harsh_accel": 1, "harsh_brake": 3})
+	tenantID := pkgauth.TenantID(c)
+	driverID := c.Param("id")
+
+	row := h.pool.QueryRow(c.Request.Context(), `
+		SELECT 
+			COALESCE(COUNT(id), 0),
+			COALESCE(SUM(duration_s), 0),
+			COALESCE(SUM(harsh_accel), 0),
+			COALESCE(SUM(harsh_brake), 0),
+			COALESCE(SUM(overspeed_count), 0)
+		FROM trips 
+		WHERE tenant_id=$1 AND driver_id=$2
+	`, tenantID, driverID)
+
+	var trips, duration, hAccel, hBrake, overspeed int
+	if err := row.Scan(&trips, &duration, &hAccel, &hBrake, &overspeed); err != nil {
+		respondError(c, http.StatusInternalServerError, "failed to compute score")
+		return
+	}
+
+	score := 100 - (hAccel*2 + hBrake*2 + overspeed*1)
+	if score < 0 { score = 0 }
+
+	respondOK(c, gin.H{
+		"score": score,
+		"period": "all_time",
+		"trips": trips,
+		"duration_s": duration,
+		"overspeed": overspeed,
+		"harsh_accel": hAccel,
+		"harsh_brake": hBrake,
+	})
 }

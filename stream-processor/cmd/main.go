@@ -8,8 +8,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
-	"os/signal"
-	"syscall"
 	"time"
 
 	"github.com/nats-io/nats.go/jetstream"
@@ -57,7 +55,7 @@ func main() {
 	// ── Services ──────────────────────────────────────────────────────────────
 	tsWriter := writer.NewTimescaleWriter(pool, logger)
 	redisWriter := writer.NewRedisWriter(rdb, logger)
-	pipeline := enrichment.NewPipeline(logger)
+	pipeline := enrichment.NewPipeline(pool, rdb, logger)
 
 	// ── NATS JetStream Consumer ───────────────────────────────────────────────
 	js := nc.JetStream()
@@ -85,7 +83,11 @@ func main() {
 		iter.Stop()
 	}()
 
-	for msg := range iter.Chan() {
+	for {
+		msg, err := iter.Next()
+		if err != nil {
+			break
+		}
 		processMessage(ctx, msg, pipeline, tsWriter, redisWriter, nc, logger)
 	}
 
