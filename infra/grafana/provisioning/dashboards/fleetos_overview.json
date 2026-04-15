@@ -1,0 +1,94 @@
+{
+  "title": "FleetOS Platform Overview",
+  "uid": "fleetos-overview",
+  "tags": ["fleetos", "gps", "fleet"],
+  "timezone": "browser",
+  "schemaVersion": 38,
+  "refresh": "15s",
+  "panels": [
+    {
+      "id": 1, "gridPos": {"h": 3, "w": 4, "x": 0, "y": 0},
+      "type": "stat", "title": "Active Device Connections",
+      "targets": [{"expr": "sum(gpsgo_device_connections_active)", "legendFormat": ""}],
+      "fieldConfig": {"defaults": {"color": {"mode": "thresholds"}, "thresholds": {"steps": [{"value": null, "color": "green"}]}}}
+    },
+    {
+      "id": 2, "gridPos": {"h": 3, "w": 4, "x": 4, "y": 0},
+      "type": "stat", "title": "Packets/sec (all protocols)",
+      "targets": [{"expr": "sum(rate(gpsgo_packets_received_total[1m]))", "legendFormat": ""}],
+      "fieldConfig": {"defaults": {"unit": "reqps", "color": {"mode": "thresholds"}, "thresholds": {"steps": [{"value": null, "color": "blue"}]}}}
+    },
+    {
+      "id": 3, "gridPos": {"h": 3, "w": 4, "x": 8, "y": 0},
+      "type": "stat", "title": "Parse Error Rate",
+      "targets": [{"expr": "sum(rate(gpsgo_parse_errors_total[5m]))", "legendFormat": ""}],
+      "fieldConfig": {"defaults": {"unit": "reqps", "color": {"mode": "thresholds"}, "thresholds": {"steps": [{"value": null, "color": "green"}, {"value": 1, "color": "red"}]}}}
+    },
+    {
+      "id": 4, "gridPos": {"h": 3, "w": 4, "x": 12, "y": 0},
+      "type": "stat", "title": "WebSocket Clients",
+      "targets": [{"expr": "sum(gpsgo_websocket_clients_active)", "legendFormat": ""}],
+      "fieldConfig": {"defaults": {"color": {"mode": "thresholds"}, "thresholds": {"steps": [{"value": null, "color": "purple"}]}}}
+    },
+    {
+      "id": 5, "gridPos": {"h": 3, "w": 4, "x": 16, "y": 0},
+      "type": "stat", "title": "Alerts Fired (1m)",
+      "targets": [{"expr": "sum(increase(gpsgo_alerts_evaluated_total[1m]))", "legendFormat": ""}],
+      "fieldConfig": {"defaults": {"color": {"mode": "thresholds"}, "thresholds": {"steps": [{"value": null, "color": "green"}, {"value": 10, "color": "orange"}, {"value": 100, "color": "red"}]}}}
+    },
+    {
+      "id": 6, "gridPos": {"h": 3, "w": 4, "x": 20, "y": 0},
+      "type": "stat", "title": "NATS Publish Latency p99",
+      "targets": [{"expr": "histogram_quantile(0.99, rate(gpsgo_nats_publish_latency_seconds_bucket[5m]))", "legendFormat": ""}],
+      "fieldConfig": {"defaults": {"unit": "s", "color": {"mode": "thresholds"}, "thresholds": {"steps": [{"value": null, "color": "green"}, {"value": 0.1, "color": "orange"}, {"value": 0.5, "color": "red"}]}}}
+    },
+    {
+      "id": 10, "gridPos": {"h": 8, "w": 12, "x": 0, "y": 3},
+      "type": "timeseries", "title": "Ingestion Throughput by Protocol",
+      "targets": [
+        {"expr": "rate(gpsgo_packets_received_total{protocol='teltonika'}[1m])", "legendFormat": "Teltonika"},
+        {"expr": "rate(gpsgo_packets_received_total{protocol='gt06'}[1m])",      "legendFormat": "GT06"},
+        {"expr": "rate(gpsgo_packets_received_total{protocol='jt808'}[1m])",     "legendFormat": "JT808"},
+        {"expr": "rate(gpsgo_packets_received_total{protocol='ais140'}[1m])",    "legendFormat": "AIS140"},
+        {"expr": "rate(gpsgo_packets_received_total{protocol='tk103'}[1m])",     "legendFormat": "TK103"}
+      ],
+      "fieldConfig": {"defaults": {"unit": "reqps"}}
+    },
+    {
+      "id": 11, "gridPos": {"h": 8, "w": 12, "x": 12, "y": 3},
+      "type": "timeseries", "title": "API Latency (p50 / p95 / p99)",
+      "targets": [
+        {"expr": "histogram_quantile(0.50, rate(gpsgo_db_query_duration_seconds_bucket[5m]))", "legendFormat": "p50"},
+        {"expr": "histogram_quantile(0.95, rate(gpsgo_db_query_duration_seconds_bucket[5m]))", "legendFormat": "p95"},
+        {"expr": "histogram_quantile(0.99, rate(gpsgo_db_query_duration_seconds_bucket[5m]))", "legendFormat": "p99"}
+      ],
+      "fieldConfig": {"defaults": {"unit": "s"}}
+    },
+    {
+      "id": 20, "gridPos": {"h": 8, "w": 12, "x": 0, "y": 11},
+      "type": "timeseries", "title": "NATS Stream Lag (consumers behind)",
+      "targets": [
+        {"expr": "nats_consumer_num_pending{stream_name='GPS_RAW'}",      "legendFormat": "GPS_RAW"},
+        {"expr": "nats_consumer_num_pending{stream_name='GPS_ENRICHED'}", "legendFormat": "GPS_ENRICHED"},
+        {"expr": "nats_consumer_num_pending{stream_name='ALERTS'}",       "legendFormat": "ALERTS"},
+        {"expr": "nats_consumer_num_pending{stream_name='REPORTS'}",      "legendFormat": "REPORTS"}
+      ],
+      "fieldConfig": {"defaults": {"unit": "short"}}
+    },
+    {
+      "id": 21, "gridPos": {"h": 8, "w": 12, "x": 12, "y": 11},
+      "type": "timeseries", "title": "DB Connection Pool",
+      "targets": [
+        {"expr": "pg_stat_database_numbackends{datname='gpsgo'}", "legendFormat": "Active connections"},
+        {"expr": "pg_settings_max_connections",                   "legendFormat": "Max connections"}
+      ],
+      "fieldConfig": {"defaults": {"unit": "short"}}
+    },
+    {
+      "id": 30, "gridPos": {"h": 6, "w": 24, "x": 0, "y": 19},
+      "type": "table", "title": "Parse Errors by Protocol (last 24h)",
+      "targets": [{"expr": "sum by (protocol) (increase(gpsgo_parse_errors_total[24h]))", "legendFormat": "{{protocol}}", "instant": true}],
+      "transformations": [{"id": "labelsToFields", "options": {}}]
+    }
+  ]
+}

@@ -1,0 +1,6 @@
+# Default values — override in production via -var-file=prod.tfvars
+region       = "ap-south-1"
+cluster_name = "gpsgo-prod"
+env          = "prod"
+domain       = "gpsgo.example.com"
+# db_password  = "SET_VIA_SECRET_MANAGER"

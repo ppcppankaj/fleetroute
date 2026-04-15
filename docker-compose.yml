@@ -212,6 +212,112 @@ services:
         condition: service_healthy
     restart: unless-stopped
 
+  # ── Maintenance Service ───────────────────────────────────────────────────
+  maintenance:
+    build:
+      context: .
+      dockerfile: maintenance-service/Dockerfile
+    container_name: gpsgo-maintenance
+    environment:
+      DATABASE_URL: postgres://gpsgo:gpsgo@timescaledb:5432/gpsgo?sslmode=disable
+      NATS_URL: nats://nats:4222
+      PORT: "8084"
+      LOG_LEVEL: info
+    ports:
+      - "8084:8084"
+    networks:
+      - gpsgo
+    depends_on:
+      timescaledb:
+        condition: service_healthy
+      nats:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:8084/api/v1/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+
+  # ── Report Service ────────────────────────────────────────────────────────
+  report:
+    build:
+      context: .
+      dockerfile: report-service/Dockerfile
+    container_name: gpsgo-report
+    environment:
+      DATABASE_URL: postgres://gpsgo:gpsgo@timescaledb:5432/gpsgo?sslmode=disable
+      NATS_URL: nats://nats:4222
+      REPORT_BASE_URL: http://localhost:8085/reports
+      # S3_BUCKET: gpsgo-reports  # set in production
+      LOG_LEVEL: info
+    networks:
+      - gpsgo
+    depends_on:
+      timescaledb:
+        condition: service_healthy
+      nats:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+    restart: unless-stopped
+
+  # ── Gateway (Reverse Proxy + CORS) ────────────────────────────────────────
+  gateway:
+    build:
+      context: .
+      dockerfile: gateway/Dockerfile
+    container_name: gpsgo-gateway
+    environment:
+      API_SERVICE_URL: http://api:8080
+      WS_SERVICE_URL: http://websocket:8081
+      MAINT_SERVICE_URL: http://maintenance:8084
+      REPORT_SERVICE_URL: http://report:8085
+      CORS_ORIGINS: "http://localhost:5173,http://localhost:3000"
+      PORT: "8000"
+    ports:
+      - "8000:8000"
+    networks:
+      - gpsgo
+    depends_on:
+      api:
+        condition: service_healthy
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:8000/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ── GoAdmin Panel ─────────────────────────────────────────────────────────
+  admin-panel:
+    build:
+      context: .
+      dockerfile: admin-panel/Dockerfile
+    container_name: gpsgo-admin
+    environment:
+      DATABASE_URL: postgres://gpsgo:gpsgo@timescaledb:5432/gpsgo?sslmode=disable
+      DB_HOST: timescaledb
+      DB_PORT: "5432"
+      DB_NAME: gpsgo
+      DB_USER: gpsgo
+      DB_PASSWORD: gpsgo
+      NATS_URL: nats://nats:4222
+      ADMIN_PORT: "8090"
+      GIN_MODE: debug
+    ports:
+      - "8090:8090"
+    networks:
+      - gpsgo
+    depends_on:
+      timescaledb:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+    restart: unless-stopped
+
   # ── Frontend ──────────────────────────────────────────────────────────────
   frontend:
     build:
@@ -219,8 +325,8 @@ services:
       dockerfile: Dockerfile
     container_name: gpsgo-frontend
     environment:
-      VITE_API_URL: http://localhost:8080
-      VITE_WS_URL: ws://localhost:8081
+      VITE_API_URL: http://localhost:8000
+      VITE_WS_URL: ws://localhost:8000/ws
     ports:
       - "3000:80"
     networks:

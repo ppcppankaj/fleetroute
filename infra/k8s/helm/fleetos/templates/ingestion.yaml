@@ -1,0 +1,229 @@
+---
+# Ingestion Service — TCP ports exposed via LoadBalancer (bypasses HTTP Ingress)
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ .Values.ingestionService.name }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    app: {{ .Values.ingestionService.name }}
+spec:
+  replicas: {{ .Values.ingestionService.replicas }}
+  selector:
+    matchLabels:
+      app: {{ .Values.ingestionService.name }}
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
+  template:
+    metadata:
+      labels:
+        app: {{ .Values.ingestionService.name }}
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "9090"
+        prometheus.io/path: "/metrics"
+    spec:
+      terminationGracePeriodSeconds: 60   # allow active connections to drain
+      containers:
+        - name: {{ .Values.ingestionService.name }}
+          image: {{ .Values.global.imageRegistry }}/{{ .Values.ingestionService.image }}:{{ .Values.global.imageTag }}
+          imagePullPolicy: {{ .Values.global.imagePullPolicy }}
+          ports:
+            - containerPort: {{ .Values.ingestionService.ports.teltonika }}
+              name: teltonika
+              protocol: TCP
+            - containerPort: {{ .Values.ingestionService.ports.gt06 }}
+              name: gt06
+              protocol: TCP
+            - containerPort: {{ .Values.ingestionService.ports.jt808 }}
+              name: jt808
+              protocol: TCP
+            - containerPort: {{ .Values.ingestionService.ports.ais140 }}
+              name: ais140
+              protocol: TCP
+            - containerPort: {{ .Values.ingestionService.ports.tk103 }}
+              name: tk103
+              protocol: TCP
+            - containerPort: 9090
+              name: metrics
+          env:
+            - name: TELTONIKA_PORT
+              value: {{ .Values.ingestionService.ports.teltonika | quote }}
+            - name: GT06_PORT
+              value: {{ .Values.ingestionService.ports.gt06 | quote }}
+            - name: JT808_PORT
+              value: {{ .Values.ingestionService.ports.jt808 | quote }}
+            - name: AIS140_PORT
+              value: {{ .Values.ingestionService.ports.ais140 | quote }}
+            - name: TK103_PORT
+              value: {{ .Values.ingestionService.ports.tk103 | quote }}
+            {{- include "fleetos.dbEnv" . | nindent 12 }}
+            {{- include "fleetos.natsEnv" . | nindent 12 }}
+            {{- with .Values.ingestionService.env }}
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
+          livenessProbe:
+            tcpSocket:
+              port: {{ .Values.ingestionService.ports.teltonika }}
+            initialDelaySeconds: 30
+            periodSeconds: 30
+            failureThreshold: 3
+          readinessProbe:
+            tcpSocket:
+              port: {{ .Values.ingestionService.ports.teltonika }}
+            initialDelaySeconds: 10
+            periodSeconds: 10
+          resources:
+            {{- toYaml .Values.ingestionService.resources | nindent 12 }}
+      {{- with .Values.ingestionService.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.ingestionService.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      affinity:
+        podAntiAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            - labelSelector:
+                matchExpressions:
+                  - key: app
+                    operator: In
+                    values: [{{ .Values.ingestionService.name }}]
+              topologyKey: kubernetes.io/hostname
+---
+# LoadBalancer service — TCP protocols bypass HTTP Ingress
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ .Values.ingestionService.name }}
+  namespace: {{ .Release.Namespace }}
+  annotations:
+    service.beta.kubernetes.io/aws-load-balancer-type: "external"
+    service.beta.kubernetes.io/aws-load-balancer-nlb-target-type: "ip"
+    service.beta.kubernetes.io/aws-load-balancer-scheme: "internet-facing"
+    service.beta.kubernetes.io/aws-load-balancer-cross-zone-load-balancing-enabled: "true"
+spec:
+  type: LoadBalancer
+  externalTrafficPolicy: Local   # preserve source IP for protocol handlers
+  ports:
+    - name: teltonika
+      port: {{ .Values.ingestionService.ports.teltonika }}
+      targetPort: teltonika
+      protocol: TCP
+    - name: gt06
+      port: {{ .Values.ingestionService.ports.gt06 }}
+      targetPort: gt06
+      protocol: TCP
+    - name: jt808
+      port: {{ .Values.ingestionService.ports.jt808 }}
+      targetPort: jt808
+      protocol: TCP
+    - name: ais140
+      port: {{ .Values.ingestionService.ports.ais140 }}
+      targetPort: ais140
+      protocol: TCP
+    - name: tk103
+      port: {{ .Values.ingestionService.ports.tk103 }}
+      targetPort: tk103
+      protocol: TCP
+  selector:
+    app: {{ .Values.ingestionService.name }}
+---
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: {{ .Values.ingestionService.name }}-hpa
+  namespace: {{ .Release.Namespace }}
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: {{ .Values.ingestionService.name }}
+  minReplicas: {{ .Values.ingestionService.hpa.minReplicas }}
+  maxReplicas: {{ .Values.ingestionService.hpa.maxReplicas }}
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: {{ .Values.ingestionService.hpa.targetCPUUtilizationPercentage }}
+---
+{{- if .Values.pdb.enabled }}
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: {{ .Values.ingestionService.name }}-pdb
+  namespace: {{ .Release.Namespace }}
+spec:
+  minAvailable: {{ .Values.pdb.minAvailable }}
+  selector:
+    matchLabels:
+      app: {{ .Values.ingestionService.name }}
+{{- end }}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ .Values.streamProcessor.name }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    app: {{ .Values.streamProcessor.name }}
+spec:
+  replicas: {{ .Values.streamProcessor.replicas }}
+  selector:
+    matchLabels:
+      app: {{ .Values.streamProcessor.name }}
+  template:
+    metadata:
+      labels:
+        app: {{ .Values.streamProcessor.name }}
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "9090"
+    spec:
+      containers:
+        - name: {{ .Values.streamProcessor.name }}
+          image: {{ .Values.global.imageRegistry }}/{{ .Values.streamProcessor.image }}:{{ .Values.global.imageTag }}
+          imagePullPolicy: {{ .Values.global.imagePullPolicy }}
+          ports:
+            - containerPort: 9090
+              name: metrics
+          env:
+            {{- include "fleetos.dbEnv" . | nindent 12 }}
+            {{- include "fleetos.redisEnv" . | nindent 12 }}
+            {{- include "fleetos.natsEnv" . | nindent 12 }}
+          resources:
+            {{- toYaml .Values.streamProcessor.resources | nindent 12 }}
+          livenessProbe:
+            exec:
+              command: ["/bin/sh", "-c", "ps aux | grep stream-processor | grep -v grep"]
+            initialDelaySeconds: 30
+            periodSeconds: 30
+---
+{{- if .Values.streamProcessor.hpa.enabled }}
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: {{ .Values.streamProcessor.name }}-hpa
+  namespace: {{ .Release.Namespace }}
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: {{ .Values.streamProcessor.name }}
+  minReplicas: {{ .Values.streamProcessor.hpa.minReplicas }}
+  maxReplicas: {{ .Values.streamProcessor.hpa.maxReplicas }}
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: {{ .Values.streamProcessor.hpa.targetCPUUtilizationPercentage }}
+{{- end }}

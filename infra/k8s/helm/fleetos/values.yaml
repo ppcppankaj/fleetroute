@@ -1,0 +1,210 @@
+# ─────────────────────────────────────────────────────────────────
+# FleetOS Helm Chart — values.yaml
+# Override per environment: helm upgrade -f values.prod.yaml ...
+# ─────────────────────────────────────────────────────────────────
+
+global:
+  imageRegistry: ""          # e.g. "123456789.dkr.ecr.ap-south-1.amazonaws.com"
+  imageTag: "latest"
+  imagePullPolicy: IfNotPresent
+
+# ── Dependency toggles ────────────────────────────────────────────
+postgresql:
+  enabled: false             # set true for dev; use RDS in production
+  auth:
+    database: gpsgo
+    username: gpsgo
+    password: gpsgo
+redis:
+  enabled: false             # set true for dev; use ElastiCache in production
+nats:
+  enabled: true
+  nats:
+    jetstream:
+      enabled: true
+      fileStorage:
+        enabled: true
+        size: 10Gi
+
+# ── External services (production overrides) ──────────────────────
+externalDatabase:
+  host: ""
+  port: 5432
+  name: gpsgo
+  user: gpsgo
+  existingSecret: gpsgo-db-secret   # key: password
+externalRedis:
+  host: ""
+  port: 6379
+  existingSecret: gpsgo-redis-secret  # key: password
+
+# ── Ingress ───────────────────────────────────────────────────────
+ingress:
+  enabled: true
+  className: "nginx"
+  annotations:
+    cert-manager.io/cluster-issuer: "letsencrypt-prod"
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "3600"
+    nginx.ingress.kubernetes.io/proxy-send-timeout: "3600"
+  hosts:
+    - host: api.gpsgo.example.com
+      paths:
+        - path: /
+          pathType: Prefix
+          service: gateway
+  tls:
+    - secretName: gpsgo-tls
+      hosts:
+        - api.gpsgo.example.com
+
+# ── Per-service configuration ─────────────────────────────────────
+
+ingestionService:
+  name: ingestion-service
+  image: gpsgo/ingestion-service
+  replicas: 3
+  resources:
+    requests: { cpu: "500m", memory: "512Mi" }
+    limits:   { cpu: "2000m", memory: "2Gi" }
+  hpa:
+    enabled: true
+    minReplicas: 3
+    maxReplicas: 30
+    targetCPUUtilizationPercentage: 60
+  ports:
+    teltonika: 5008
+    gt06:      5023
+    jt808:     5013
+    ais140:    5027
+    tk103:     5018
+  nodeSelector:
+    workload: ingestion
+  tolerations:
+    - key: workload
+      operator: Equal
+      value: ingestion
+      effect: NoSchedule
+  env:
+    - name: MAX_CONNECTIONS_PER_LISTENER
+      value: "50000"
+    - name: NATS_URL
+      value: "nats://nats:4222"
+
+streamProcessor:
+  name: stream-processor
+  image: gpsgo/stream-processor
+  replicas: 3
+  resources:
+    requests: { cpu: "500m", memory: "256Mi" }
+    limits:   { cpu: "1000m", memory: "1Gi" }
+  hpa:
+    enabled: true
+    minReplicas: 3
+    maxReplicas: 20
+    targetCPUUtilizationPercentage: 70
+
+apiService:
+  name: api-service
+  image: gpsgo/api-service
+  replicas: 2
+  port: 8080
+  resources:
+    requests: { cpu: "250m", memory: "256Mi" }
+    limits:   { cpu: "1000m", memory: "512Mi" }
+  hpa:
+    enabled: true
+    minReplicas: 2
+    maxReplicas: 15
+    targetCPUUtilizationPercentage: 70
+
+websocketService:
+  name: websocket-service
+  image: gpsgo/websocket-service
+  replicas: 2
+  port: 8081
+  resources:
+    requests: { cpu: "250m", memory: "256Mi" }
+    limits:   { cpu: "1000m", memory: "1Gi" }
+
+maintenanceService:
+  name: maintenance-service
+  image: gpsgo/maintenance-service
+  replicas: 1
+  port: 8084
+  resources:
+    requests: { cpu: "100m", memory: "128Mi" }
+    limits:   { cpu: "500m", memory: "256Mi" }
+
+reportService:
+  name: report-service
+  image: gpsgo/report-service
+  replicas: 2
+  resources:
+    requests: { cpu: "500m", memory: "512Mi" }
+    limits:   { cpu: "2000m", memory: "2Gi" }
+  env:
+    - name: S3_BUCKET
+      value: "gpsgo-reports"
+
+gateway:
+  name: gateway
+  image: gpsgo/gateway
+  replicas: 2
+  port: 8000
+  resources:
+    requests: { cpu: "100m", memory: "64Mi" }
+    limits:   { cpu: "500m", memory: "256Mi" }
+
+adminPanel:
+  name: admin-panel
+  image: gpsgo/admin-panel
+  replicas: 1
+  port: 8090
+  resources:
+    requests: { cpu: "100m", memory: "128Mi" }
+    limits:   { cpu: "500m", memory: "512Mi" }
+  # Admin panel is NOT exposed via public ingress — internal only
+  service:
+    type: ClusterIP
+
+# ── Shared secrets (referenced by all services) ───────────────────
+secrets:
+  jwtPublicKeySecret:  gpsgo-jwt-public-key    # key: public.pem
+  jwtPrivateKeySecret: gpsgo-jwt-private-key   # key: private.pem
+
+# ── Migrations init container ─────────────────────────────────────
+migrations:
+  image: gpsgo/api-service
+  command: ["/app/api-service", "migrate"]
+
+# ── PodDisruptionBudgets ──────────────────────────────────────────
+pdb:
+  enabled: true
+  minAvailable: 1
+
+# ── NetworkPolicies ───────────────────────────────────────────────
+networkPolicies:
+  enabled: true
+
+# ── Monitoring ────────────────────────────────────────────────────
+serviceMonitor:
+  enabled: true    # requires prometheus-operator CRDs
+  interval: 15s
+  namespace: monitoring
+
+# ── Liveness / readiness probe defaults ──────────────────────────
+probes:
+  liveness:
+    httpGet:
+      path: /health
+      port: 8080
+    initialDelaySeconds: 15
+    periodSeconds: 20
+    failureThreshold: 3
+  readiness:
+    httpGet:
+      path: /health
+      port: 8080
+    initialDelaySeconds: 5
+    periodSeconds: 10
+    failureThreshold: 3

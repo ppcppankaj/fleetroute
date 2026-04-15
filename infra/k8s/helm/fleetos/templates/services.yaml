@@ -1,0 +1,173 @@
+{{/*  Generates Deployment + Service + HPA for a standard FleetOS HTTP service  */}}
+{{- define "fleetos.httpService" -}}
+{{- $svc := .svc -}}
+{{- $root := .root -}}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ $svc.name }}
+  namespace: {{ $root.Release.Namespace }}
+  labels:
+    app: {{ $svc.name }}
+    {{- include "fleetos.labels" $root | nindent 4 }}
+spec:
+  replicas: {{ $svc.replicas | default 1 }}
+  selector:
+    matchLabels:
+      app: {{ $svc.name }}
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
+  template:
+    metadata:
+      labels:
+        app: {{ $svc.name }}
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: {{ $svc.port | default 8080 | quote }}
+        prometheus.io/path: "/metrics"
+    spec:
+      {{- if $root.Values.migrations }}
+      initContainers:
+        - name: migrate
+          image: {{ include "fleetos.image" (dict "Values" $root.Values "image" $root.Values.migrations.image) }}
+          command: {{ toJson $root.Values.migrations.command }}
+          env:
+            {{- include "fleetos.dbEnv" $root | nindent 12 }}
+      {{- end }}
+      containers:
+        - name: {{ $svc.name }}
+          image: {{ include "fleetos.image" (dict "Values" $root.Values "image" $svc.image) }}
+          imagePullPolicy: {{ $root.Values.global.imagePullPolicy }}
+          ports:
+            - containerPort: {{ $svc.port | default 8080 }}
+              name: http
+            - containerPort: 9090
+              name: metrics
+          env:
+            {{- include "fleetos.dbEnv" $root | nindent 12 }}
+            {{- include "fleetos.redisEnv" $root | nindent 12 }}
+            {{- include "fleetos.natsEnv" $root | nindent 12 }}
+            {{- include "fleetos.jwtEnv" $root | nindent 12 }}
+            {{- with $svc.env }}
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: http
+            initialDelaySeconds: 15
+            periodSeconds: 20
+            failureThreshold: 3
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: http
+            initialDelaySeconds: 5
+            periodSeconds: 10
+            failureThreshold: 3
+          resources:
+            {{- toYaml $svc.resources | nindent 12 }}
+          volumeMounts:
+            - name: jwt-keys
+              mountPath: /secrets
+              readOnly: true
+      volumes:
+        - name: jwt-keys
+          projected:
+            sources:
+              - secret:
+                  name: {{ $root.Values.secrets.jwtPublicKeySecret }}
+                  items:
+                    - key: public.pem
+                      path: public.pem
+              - secret:
+                  name: {{ $root.Values.secrets.jwtPrivateKeySecret }}
+                  items:
+                    - key: private.pem
+                      path: private.pem
+      {{- with $svc.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with $svc.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      affinity:
+        podAntiAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+            - weight: 100
+              podAffinityTerm:
+                labelSelector:
+                  matchExpressions:
+                    - key: app
+                      operator: In
+                      values: [{{ $svc.name }}]
+                topologyKey: kubernetes.io/hostname
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ $svc.name }}
+  namespace: {{ $root.Release.Namespace }}
+  labels:
+    app: {{ $svc.name }}
+spec:
+  type: {{ $svc.service.type | default "ClusterIP" }}
+  ports:
+    - port: {{ $svc.port | default 8080 }}
+      targetPort: http
+      name: http
+    - port: 9090
+      targetPort: metrics
+      name: metrics
+  selector:
+    app: {{ $svc.name }}
+{{- if $svc.hpa.enabled }}
+---
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: {{ $svc.name }}-hpa
+  namespace: {{ $root.Release.Namespace }}
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: {{ $svc.name }}
+  minReplicas: {{ $svc.hpa.minReplicas | default 2 }}
+  maxReplicas: {{ $svc.hpa.maxReplicas | default 10 }}
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: {{ $svc.hpa.targetCPUUtilizationPercentage | default 70 }}
+{{- end }}
+{{- if $root.Values.pdb.enabled }}
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: {{ $svc.name }}-pdb
+  namespace: {{ $root.Release.Namespace }}
+spec:
+  minAvailable: {{ $root.Values.pdb.minAvailable | default 1 }}
+  selector:
+    matchLabels:
+      app: {{ $svc.name }}
+{{- end }}
+{{- end }}
+
+{{/* ── Render all HTTP services ── */}}
+{{ include "fleetos.httpService" (dict "svc" (merge .Values.apiService     (dict "service" (dict))) "root" .) }}
+{{ include "fleetos.httpService" (dict "svc" (merge .Values.websocketService (dict "service" (dict))) "root" .) }}
+{{ include "fleetos.httpService" (dict "svc" (merge .Values.maintenanceService (dict "service" (dict))) "root" .) }}
+{{ include "fleetos.httpService" (dict "svc" (merge .Values.reportService   (dict "service" (dict))) "root" .) }}
+{{ include "fleetos.httpService" (dict "svc" (merge .Values.gateway         (dict "service" (dict))) "root" .) }}
+{{ include "fleetos.httpService" (dict "svc" (merge .Values.adminPanel      (dict) "service" .Values.adminPanel.service) "root" .) }}

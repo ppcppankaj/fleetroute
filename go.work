@@ -7,4 +7,8 @@ use (
 	./stream-processor
 	./api-service
 	./websocket-service
+	./maintenance-service
+	./report-service
+	./gateway
+	./admin-panel
 )
