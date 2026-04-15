@@ -7,6 +7,10 @@ COPY api-service/ api-service/
 COPY ingestion-service/ ingestion-service/
 COPY stream-processor/ stream-processor/
 COPY websocket-service/ websocket-service/
+COPY maintenance-service/ maintenance-service/
+COPY report-service/ report-service/
+COPY gateway/ gateway/
+COPY admin-panel/ admin-panel/
 RUN cd websocket-service && go build -o /websocket-service ./cmd/...
 
 FROM alpine:3.20

@@ -13,6 +13,9 @@ export interface MapAdapter {
   /** Fly/pan to a position */
   flyTo(lat: number, lng: number, zoom?: number): void
 
+  /** Fit view to contain all coordinates */
+  fitBounds(coordinates: { lat: number; lng: number }[]): void
+
   /** Draw a route path */
   drawPath(coordinates: [number, number][], color?: string): void
 

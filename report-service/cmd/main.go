@@ -6,7 +6,6 @@ import (
 	"encoding/csv"
 	"encoding/json"
 	"fmt"
-	"net/http"
 	"os"
 	"os/signal"
 	"syscall"

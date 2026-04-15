@@ -50,7 +50,7 @@ interface SparePart {
 
 type Tab = 'schedules' | 'documents' | 'parts' | 'log'
 
-const statusConfig: Record<ServiceStatus, { color: string; icon: React.ComponentType<{ size: number }> }> = {
+const statusConfig: Record<ServiceStatus, { color: string; icon: any }> = {
   ok:        { color: 'var(--color-success)', icon: CheckCircle },
   due_soon:  { color: 'var(--color-warning)', icon: AlertTriangle },
   overdue:   { color: 'var(--color-danger)',  icon: XCircle },
@@ -203,7 +203,9 @@ export function MaintenancePage() {
                   return (
                     <tr key={s.id} id={`schedule-row-${s.id}`}>
                       <td>
-                        <StatusIcon size={16} style={{ color: cfg.color }} />
+                        <div style={{ color: cfg.color }}>
+                          <StatusIcon size={16} />
+                        </div>
                       </td>
                       <td><strong>{s.registration}</strong></td>
                       <td>{s.service_type}</td>

@@ -139,6 +139,19 @@ export class OpenLayersAdapter implements MapAdapter {
     })
   }
 
+  fitBounds(coordinates: { lat: number; lng: number }[]): void {
+    if (!this.map || coordinates.length === 0) return
+    const extent: [number, number, number, number] = [Infinity, Infinity, -Infinity, -Infinity]
+    coordinates.forEach(({ lat, lng }) => {
+      const [projLng, projLat] = fromLonLat([lng, lat])
+      extent[0] = Math.min(extent[0], projLng)
+      extent[1] = Math.min(extent[1], projLat)
+      extent[2] = Math.max(extent[2], projLng)
+      extent[3] = Math.max(extent[3], projLat)
+    })
+    this.map.getView().fit(extent, { duration: 600, padding: [50, 50, 50, 50] })
+  }
+
   drawPath(coordinates: [number, number][], color = '#00D4FF'): void {
     const lineCoords = coordinates.map(([lat, lng]) => fromLonLat([lng, lat]))
     const feature = new Feature(new LineString(lineCoords))

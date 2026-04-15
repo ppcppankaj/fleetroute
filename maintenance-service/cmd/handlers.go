@@ -1,7 +1,6 @@
 package main
 
 import (
-	"context"
 	"fmt"
 	"net/http"
 
@@ -179,8 +178,7 @@ func (h *Handler) CompleteService(c *gin.Context) {
 
 	partsJSON := "[]"
 	if len(body.PartsUsed) > 0 {
-		b, _ := fmt.Appendf(nil, "%v", body.PartsUsed)
-		partsJSON = string(b)
+		partsJSON = fmt.Sprintf("%v", body.PartsUsed)
 	}
 
 	// Insert service log

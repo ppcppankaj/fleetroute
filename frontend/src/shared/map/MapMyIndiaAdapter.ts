@@ -28,6 +28,10 @@ export class MapMyIndiaAdapter implements MapAdapter {
     console.debug(`[MapmyIndia] flyTo lat=${lat} lng=${lng} zoom=${zoom}`)
   }
 
+  fitBounds(coordinates: { lat: number; lng: number }[]): void {
+    console.debug(`[MapmyIndia] fitBounds with ${coordinates.length} points`)
+  }
+
   drawPath(coordinates: [number, number][], color?: string): void {
     console.debug(`[MapmyIndia] drawPath with ${coordinates.length} points`)
   }

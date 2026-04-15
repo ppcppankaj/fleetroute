@@ -1,9 +1,17 @@
 FROM golang:1.22-alpine AS builder
 WORKDIR /build
-COPY go.mod ./
-RUN go mod download
-COPY . .
-RUN CGO_ENABLED=0 GOOS=linux go build -o admin-panel ./cmd/
+COPY go.work go.work.sum* ./
+COPY pkg/ pkg/
+COPY protocols/ protocols/
+COPY api-service/ api-service/
+COPY ingestion-service/ ingestion-service/
+COPY stream-processor/ stream-processor/
+COPY websocket-service/ websocket-service/
+COPY maintenance-service/ maintenance-service/
+COPY report-service/ report-service/
+COPY gateway/ gateway/
+COPY admin-panel/ admin-panel/
+RUN cd admin-panel && go build -o admin-panel ./cmd/
 
 FROM alpine:3.19
 RUN apk add --no-cache ca-certificates tzdata

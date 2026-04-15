@@ -70,12 +70,12 @@ export function RoutePlayback() {
     if (!adapter || positions.length < 2) return
 
     const coords = positions.map((p) => ({ lat: p.lat, lng: p.lng }))
-    adapter.clearAll?.()
-    adapter.addPolyline?.('route', coords, '#10b981', 3)
+    adapter.clearPaths()
+    adapter.drawPath(coords.map(c => [c.lat, c.lng]), '#10b981')
 
     // Fit to route
     if (coords.length > 0) {
-      adapter.fitBounds?.(coords)
+      adapter.fitBounds(coords)
     }
     setCurrentIdx(0)
     setPlaying(false)
