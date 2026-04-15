@@ -822,3 +822,160 @@ tr:hover td { background: var(--color-bg-elevated); }
 .device-popup-field { font-size: var(--text-xs); }
 .device-popup-key { color: var(--color-text-muted); }
 .device-popup-val { font-family: var(--font-mono); color: var(--color-accent); font-weight: 500; }
+
+/* ══════════════════════════════════════════════════════════════
+   Phase 3 — Additional utility classes and component styles
+   ══════════════════════════════════════════════════════════════ */
+
+/* Variable aliases so Phase 3 components work with both naming conventions */
+:root {
+  --color-surface:        #0E1628;
+  --color-surface-raised: #152036;
+  --color-text:           #F0F6FF;
+}
+
+/* .form-input — used across maintenance modal, settings, geofence forms */
+.form-input {
+  display: block;
+  width: 100%;
+  background: var(--color-bg-elevated);
+  border: 1px solid var(--color-border);
+  color: var(--color-text-primary);
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius-md);
+  font-size: var(--text-sm);
+  font-family: var(--font-sans);
+  margin-top: 4px;
+  transition: border-color var(--transition), box-shadow var(--transition);
+}
+.form-input:focus {
+  outline: none;
+  border-color: var(--color-accent);
+  box-shadow: 0 0 0 3px var(--color-accent-glow);
+}
+.form-input::placeholder { color: var(--color-text-muted); }
+textarea.form-input { resize: vertical; min-height: 80px; }
+
+/* Checkbox */
+input[type="checkbox"] {
+  accent-color: var(--color-accent);
+  width: 15px;
+  height: 15px;
+  cursor: pointer;
+}
+
+/* Extra button variants */
+.btn-success {
+  background: rgba(0, 229, 153, 0.15);
+  color: var(--color-success);
+  border: 1px solid rgba(0, 229, 153, 0.25);
+}
+.btn-success:hover {
+  background: rgba(0, 229, 153, 0.25);
+  box-shadow: 0 0 12px rgba(0, 229, 153, 0.2);
+}
+.btn-warning {
+  background: rgba(255, 184, 77, 0.15);
+  color: var(--color-warning);
+  border: 1px solid rgba(255, 184, 77, 0.25);
+}
+.btn-warning:hover { background: rgba(255, 184, 77, 0.25); }
+
+/* Additional layout utilities */
+.justify-center { justify-content: center; }
+.justify-end     { justify-content: flex-end; }
+.gap-1   { gap: var(--space-1); }
+.gap-6   { gap: var(--space-6); }
+.gap-8   { gap: var(--space-8); }
+.flex-wrap  { flex-wrap: wrap; }
+.shrink-0   { flex-shrink: 0; }
+.font-semibold { font-weight: 600; }
+.text-lg  { font-size: var(--text-lg); }
+.text-xl  { font-size: var(--text-xl); }
+.text-2xl { font-size: var(--text-2xl); }
+.mt-4 { margin-top: var(--space-4); }
+.mb-4 { margin-bottom: var(--space-4); }
+.opacity-40 { opacity: 0.4; }
+.cursor-pointer { cursor: pointer; }
+
+/* Geofence panel */
+.geofence-list-panel {
+  width: 300px;
+  background: var(--color-bg-surface);
+  border-right: 1px solid var(--color-border);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+.geofence-item {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-3) var(--space-4);
+  border-bottom: 1px solid var(--color-border);
+  cursor: pointer;
+  transition: background var(--transition);
+}
+.geofence-item:hover    { background: var(--color-bg-elevated); }
+.geofence-item.selected { background: var(--color-accent-glow); border-left: 3px solid var(--color-accent); }
+
+/* Range slider — route playback timeline */
+input[type="range"] {
+  -webkit-appearance: none;
+  appearance: none;
+  height: 4px;
+  background: var(--color-bg-overlay);
+  border-radius: var(--radius-full);
+  outline: none;
+}
+input[type="range"]::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: var(--color-accent);
+  cursor: pointer;
+  box-shadow: 0 0 6px var(--color-accent-glow);
+}
+input[type="range"]::-moz-range-thumb {
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: var(--color-accent);
+  cursor: pointer;
+  border: none;
+}
+
+/* Additional status dots */
+.dot-warning { background: var(--color-warning); box-shadow: 0 0 6px rgba(255,184,77,0.5); }
+.dot-info    { background: var(--color-info); }
+
+/* Slide-up animation for modals */
+@keyframes slideUp {
+  from { opacity: 0; transform: translateY(16px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.animate-slide-up { animation: slideUp 0.25s ease forwards; }
+
+/* Recharts dark-mode overrides */
+.recharts-default-tooltip {
+  background-color: var(--color-bg-elevated) !important;
+  border: 1px solid var(--color-border) !important;
+  border-radius: var(--radius-md) !important;
+  color: var(--color-text-primary) !important;
+  font-size: var(--text-xs) !important;
+}
+.recharts-cartesian-axis-tick-value    { fill: var(--color-text-muted) !important; }
+.recharts-polar-angle-axis-tick-value  { fill: var(--color-text-muted) !important; }
+.recharts-polar-radius-axis-tick-value { fill: var(--color-text-muted) !important; }
+
+/* Responsive overrides */
+@media (max-width: 1024px) {
+  .stat-grid { grid-template-columns: repeat(2, 1fr); }
+  .device-panel { width: 280px; }
+}
+@media (max-width: 768px) {
+  .sidebar { display: none; }
+  .stat-grid { grid-template-columns: 1fr; }
+  .geofence-list-panel { display: none; }
+}
