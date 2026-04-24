@@ -22,25 +22,47 @@ CREATE TABLE IF NOT EXISTS vehicle_group_members (
 );
 
 -- Alert rules with JSONB condition trees
-CREATE TABLE IF NOT EXISTS alert_rules (
-    id               UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    tenant_id        UUID NOT NULL REFERENCES tenants(id),
-    name             TEXT NOT NULL,
-    description      TEXT,
-    template_id      TEXT,                              -- built-in template used (if any)
-    conditions       JSONB NOT NULL,                    -- {"op":"and","conditions":[{"field":"speed","op":"gt","value":80}]}
-    severity         TEXT NOT NULL DEFAULT 'warning',   -- info | warning | critical
-    cooldown_s       INT  NOT NULL DEFAULT 300,         -- min seconds between repeated triggers per device
-    actions          JSONB NOT NULL DEFAULT '[]',       -- [{"type":"alert"},{"type":"webhook","url":"..."}]
-    vehicle_group_id UUID REFERENCES vehicle_groups(id),-- NULL = applies to all tenant vehicles
-    enabled          BOOL NOT NULL DEFAULT true,
-    trigger_count    BIGINT NOT NULL DEFAULT 0,
-    last_triggered   TIMESTAMPTZ,
-    created_at       TIMESTAMPTZ NOT NULL DEFAULT now(),
-    updated_at       TIMESTAMPTZ NOT NULL DEFAULT now(),
-    deleted_at       TIMESTAMPTZ
-);
-CREATE INDEX idx_alert_rules_tenant_enabled ON alert_rules(tenant_id, enabled) WHERE deleted_at IS NULL;
+-- alert_rules is initially created in 000006_trips_alerts.up.sql.
+-- Add new columns needed for rules + notification workflow.
+ALTER TABLE alert_rules
+    ADD COLUMN IF NOT EXISTS description      TEXT,
+    ADD COLUMN IF NOT EXISTS severity         TEXT NOT NULL DEFAULT 'warning',
+    ADD COLUMN IF NOT EXISTS vehicle_group_id UUID,
+    ADD COLUMN IF NOT EXISTS enabled          BOOL NOT NULL DEFAULT true,
+    ADD COLUMN IF NOT EXISTS trigger_count    BIGINT NOT NULL DEFAULT 0,
+    ADD COLUMN IF NOT EXISTS last_triggered   TIMESTAMPTZ,
+    ADD COLUMN IF NOT EXISTS deleted_at       TIMESTAMPTZ;
+
+DO $$
+BEGIN
+    IF EXISTS (
+        SELECT 1
+        FROM information_schema.columns
+        WHERE table_schema = 'public'
+          AND table_name = 'alert_rules'
+          AND column_name = 'is_active'
+    ) THEN
+        UPDATE alert_rules
+        SET enabled = COALESCE(is_active, true)
+        WHERE enabled IS DISTINCT FROM COALESCE(is_active, true);
+    END IF;
+
+    IF NOT EXISTS (
+        SELECT 1
+        FROM pg_constraint c
+        JOIN pg_class t ON t.oid = c.conrelid
+        JOIN pg_namespace n ON n.oid = t.relnamespace
+        WHERE c.conname = 'alert_rules_vehicle_group_id_fkey'
+          AND t.relname = 'alert_rules'
+          AND n.nspname = 'public'
+    ) THEN
+        ALTER TABLE alert_rules
+            ADD CONSTRAINT alert_rules_vehicle_group_id_fkey
+            FOREIGN KEY (vehicle_group_id) REFERENCES vehicle_groups(id);
+    END IF;
+END $$;
+
+CREATE INDEX IF NOT EXISTS idx_alert_rules_tenant_enabled ON alert_rules(tenant_id, enabled) WHERE deleted_at IS NULL;
 
 -- Notification channels per tenant
 CREATE TABLE IF NOT EXISTS notification_channels (

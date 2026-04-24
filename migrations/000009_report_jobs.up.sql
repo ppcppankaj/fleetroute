@@ -103,7 +103,7 @@ CREATE INDEX idx_webhook_delivery_endpoint ON webhook_delivery_log(endpoint_id, 
 
 -- Raw packet diagnostic log (for GoAdmin inspector)
 CREATE TABLE IF NOT EXISTS packet_log (
-    id             UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    id             UUID NOT NULL DEFAULT gen_random_uuid(),
     device_id      UUID REFERENCES devices(id),
     imei           TEXT,
     source_ip      TEXT NOT NULL,
@@ -115,7 +115,8 @@ CREATE TABLE IF NOT EXISTS packet_log (
     record_count   INT NOT NULL DEFAULT 0,
     parse_error    TEXT,
     raw_hex        TEXT,         -- truncated to 4096 chars for storage
-    received_at    TIMESTAMPTZ NOT NULL DEFAULT now()
+    received_at    TIMESTAMPTZ NOT NULL DEFAULT now(),
+    PRIMARY KEY (id, received_at)
 ) PARTITION BY RANGE (received_at);
 
 -- Create initial partition (current month)

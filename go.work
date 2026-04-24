@@ -1,14 +1,25 @@
-go 1.22
+go 1.23.0
 
 use (
+	./gateway
 	./pkg
 	./protocols
-	./ingestion-service
-	./stream-processor
-	./api-service
-	./websocket-service
-	./maintenance-service
-	./report-service
-	./gateway
-	./admin-panel
+	./services/m01-live-tracking
+	./services/m02-routes-trips
+	./services/m03-geofencing
+	./services/m04-alerts
+	./services/m05-reports
+	./services/m06-vehicles
+	./services/m07-drivers
+	./services/m08-maintenance
+	./services/m09-fuel
+	./services/m10-multi-tenant
+	./services/m11-users-access
+	./services/m12-devices
+	./services/m13-security
+	./services/m14-billing
+	./services/m15-admin-panel
+	./services/m16-activity-log
+	./services/m17-roadmap
+	./shared
 )

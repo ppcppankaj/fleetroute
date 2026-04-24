@@ -68,6 +68,21 @@ func main() {
 	v1.POST("/maintenance/parts", h.CreatePart)
 	v1.PUT("/maintenance/parts/:id", h.UpdatePart)
 
+	// Vendors
+	v1.GET("/maintenance/vendors", h.ListVendors)
+	v1.POST("/maintenance/vendors", h.CreateVendor)
+	v1.PUT("/maintenance/vendors/:id", h.UpdateVendor)
+	v1.DELETE("/maintenance/vendors/:id", h.DeleteVendor)
+
+	// Inspections
+	v1.GET("/maintenance/inspections", h.ListInspections)
+	v1.POST("/maintenance/inspections", h.CreateInspection)
+
+	// Tyre management
+	v1.GET("/maintenance/tyres", h.ListTyres)
+	v1.POST("/maintenance/tyres", h.CreateTyre)
+	v1.PUT("/maintenance/tyres/:id", h.UpdateTyre)
+
 	port := getenv("PORT", "8084")
 	srv := &http.Server{Addr: ":" + port, Handler: r}
 
@@ -147,7 +162,7 @@ func checkExpiries(pool *pgxpool.Pool, nc *nats.Conn, log *zap.Logger) {
 	// Documents expiring within 30 days
 	rows, err := pool.Query(ctx, `
 		SELECT vd.id, vd.tenant_id, vd.vehicle_id, vd.doc_type, vd.expires_at,
-		       EXTRACT(DAY FROM vd.expires_at - CURRENT_DATE)::int AS days_left
+		       (vd.expires_at - CURRENT_DATE)::int AS days_left
 		FROM vehicle_documents vd
 		WHERE vd.deleted_at IS NULL
 		  AND vd.expires_at BETWEEN CURRENT_DATE AND CURRENT_DATE + INTERVAL '30 days'

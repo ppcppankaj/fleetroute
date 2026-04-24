@@ -12,6 +12,12 @@ import { MaintenancePage } from './features/maintenance/MaintenancePage'
 import { RoutePlayback } from './features/playback/RoutePlayback'
 import { VehicleDetail } from './features/fleet/VehicleDetail'
 import { DriverDetail } from './features/fleet/DriverDetail'
+import FuelPage from './features/fuel/FuelPage'
+import DevicesPage from './features/devices/DevicesPage'
+import UsersPage from './features/users/UsersPage'
+import BillingPage from './features/billing/BillingPage'
+import ActivityPage from './features/activity/ActivityPage'
+import VideoTelematicsPage from './features/video/VideoTelematicsPage'
 
 export default function App() {
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated)
@@ -36,6 +42,12 @@ export default function App() {
         <Route path="/geofences" element={<GeofencePage />} />
         <Route path="/alerts" element={<AlertsPage />} />
         <Route path="/maintenance" element={<MaintenancePage />} />
+        <Route path="/fuel" element={<FuelPage />} />
+        <Route path="/devices" element={<DevicesPage />} />
+        <Route path="/video" element={<VideoTelematicsPage />} />
+        <Route path="/users" element={<UsersPage />} />
+        <Route path="/billing" element={<BillingPage />} />
+        <Route path="/activity" element={<ActivityPage />} />
         <Route path="/reports" element={<ReportsPage />} />
         <Route path="/settings" element={<SettingsPage />} />
         <Route path="/playback/:deviceId" element={<RoutePlayback />} />

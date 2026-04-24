@@ -5,18 +5,45 @@ import { useAlertStore } from '../store/alertStore'
 import { useDeviceStore } from '../store/deviceStore'
 import {
   MapPin, Truck, Bell, BarChart2, Settings, LogOut,
-  Activity, Zap, Shield, Wrench, ChevronLeft, ChevronRight
+  Activity, Zap, Shield, Wrench, ChevronLeft, ChevronRight,
+  Fuel, Cpu, Users, CreditCard, Clock, Camera
 } from 'lucide-react'
 import { useState } from 'react'
 
-const navItems = [
-  { to: '/tracking',    icon: MapPin,    label: 'Live Tracking' },
-  { to: '/fleet',       icon: Truck,     label: 'Fleet' },
-  { to: '/geofences',   icon: Shield,    label: 'Geofences' },
-  { to: '/alerts',      icon: Bell,      label: 'Alerts', badge: true },
-  { to: '/maintenance', icon: Wrench,    label: 'Maintenance' },
-  { to: '/reports',     icon: BarChart2, label: 'Reports' },
-  { to: '/settings',    icon: Settings,  label: 'Settings' },
+const navGroups = [
+  {
+    label: 'Operations',
+    items: [
+      { to: '/tracking',    icon: MapPin,    label: 'Live Tracking' },
+      { to: '/fleet',       icon: Truck,     label: 'Fleet' },
+      { to: '/video',       icon: Camera,    label: 'Dashcams' },
+      { to: '/geofences',   icon: Shield,    label: 'Geofences' },
+      { to: '/alerts',      icon: Bell,      label: 'Alerts', badge: true },
+    ],
+  },
+  {
+    label: 'Management',
+    items: [
+      { to: '/maintenance', icon: Wrench,    label: 'Maintenance' },
+      { to: '/fuel',        icon: Fuel,      label: 'Fuel' },
+      { to: '/devices',     icon: Cpu,       label: 'Devices' },
+    ],
+  },
+  {
+    label: 'Analytics',
+    items: [
+      { to: '/reports',     icon: BarChart2, label: 'Reports' },
+      { to: '/activity',    icon: Clock,     label: 'Activity' },
+    ],
+  },
+  {
+    label: 'Admin',
+    items: [
+      { to: '/users',       icon: Users,       label: 'Users & Access' },
+      { to: '/billing',     icon: CreditCard,  label: 'Billing' },
+      { to: '/settings',    icon: Settings,    label: 'Settings' },
+    ],
+  },
 ]
 
 export default function AppShell() {
@@ -49,20 +76,24 @@ export default function AppShell() {
         </button>
 
         <nav className="sidebar-nav">
-          {!collapsed && <div className="nav-section-label">Navigation</div>}
-          {navItems.map(({ to, icon: Icon, label, badge }) => (
-            <NavLink
-              key={to}
-              to={to}
-              className={({ isActive }) => `nav-item${isActive ? ' active' : ''}`}
-              title={collapsed ? label : undefined}
-            >
-              <Icon size={18} className="nav-icon" />
-              {!collapsed && label}
-              {badge && unread > 0 && (
-                <span className="nav-badge">{unread > 99 ? '99+' : unread}</span>
-              )}
-            </NavLink>
+          {navGroups.map(({ label, items }) => (
+            <div key={label}>
+              {!collapsed && <div className="nav-section-label">{label}</div>}
+              {items.map(({ to, icon: Icon, label: itemLabel, badge }) => (
+                <NavLink
+                  key={to}
+                  to={to}
+                  className={({ isActive }) => `nav-item${isActive ? ' active' : ''}`}
+                  title={collapsed ? itemLabel : undefined}
+                >
+                  <Icon size={18} className="nav-icon" />
+                  {!collapsed && itemLabel}
+                  {badge && unread > 0 && (
+                    <span className="nav-badge">{unread > 99 ? '99+' : unread}</span>
+                  )}
+                </NavLink>
+              ))}
+            </div>
           ))}
 
           {!collapsed && (

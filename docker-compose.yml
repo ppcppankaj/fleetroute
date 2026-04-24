@@ -1,21 +1,50 @@
 
-# ── GPS Fleet Management Platform — Local Dev Environment ─────────────────────
+# ── GPS Fleet SaaS — Full Production Stack ─────────────────────────────────
 # Usage:
-#   cp .env.example .env         # fill in values
-#   make gen-keys                 # generate JWT RSA keys
-#   docker compose up -d          # start everything
-#   make migrate-up               # run DB migrations
+#   docker compose up -d           # start everything
+#   docker compose up --build -d   # rebuild + start
+#   docker compose down -v         # stop + wipe volumes
+#
+# Ports:
+#   3000  API Gateway
+#   3001  Tenant Frontend
+#   3002  Admin Panel (Next.js)
+#   4001-4017  Microservices
+#   9090  Prometheus | 3100  Grafana
 
 networks:
-  gpsgo:
+  fleet:
     driver: bridge
 
 volumes:
-  timescale_data:
+  # Per-service Postgres volumes
+  pgdata_m01:
+  pgdata_m02:
+  pgdata_m03:
+  pgdata_m04:
+  pgdata_m05:
+  pgdata_m06:
+  pgdata_m07:
+  pgdata_m08:
+  pgdata_m09:
+  pgdata_m10:
+  pgdata_m11:
+  pgdata_m12:
+  pgdata_m13:
+  pgdata_m14:
+  pgdata_m15:
+  pgdata_m16:
+  pgdata_m17:
+
+  # Infra volumes
   redis_data:
-  nats_data:
+  kafka_data:
+  zookeeper_data:
+  zookeeper_log:
+  minio_data:
   prometheus_data:
   grafana_data:
+  loki_data:
 
 secrets:
   jwt_private:
@@ -23,349 +52,875 @@ secrets:
   jwt_public:
     file: ./secrets/jwt_public.pem
 
+# ═══════════════════════════════════════════════════════════════════════════
+# INFRASTRUCTURE
+# ═══════════════════════════════════════════════════════════════════════════
 services:
 
-  # ── TimescaleDB (PostgreSQL + PostGIS + TimescaleDB) ──────────────────────
-  timescaledb:
-    image: timescale/timescaledb-ha:pg16
-    container_name: gpsgo-timescaledb
+  # ── Zookeeper ──────────────────────────────────────────────────────────
+  zookeeper:
+    image: confluentinc/cp-zookeeper:7.5.0
+    container_name: fleet-zookeeper
     environment:
-      POSTGRES_DB: gpsgo
-      POSTGRES_USER: gpsgo
-      POSTGRES_PASSWORD: gpsgo
+      ZOOKEEPER_CLIENT_PORT: 2181
+      ZOOKEEPER_TICK_TIME: 2000
     volumes:
-      - timescale_data:/var/lib/postgresql/data
+      - zookeeper_data:/var/lib/zookeeper/data
+      - zookeeper_log:/var/lib/zookeeper/log
     ports:
-      - "5432:5432"
-    networks:
-      - gpsgo
+      - "2181:2181"
+    networks: [fleet]
+    restart: unless-stopped
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U gpsgo -d gpsgo"]
+      test: ["CMD", "bash", "-c", "echo ruok | nc localhost 2181 | grep imok"]
       interval: 10s
       timeout: 5s
       retries: 10
 
-  # ── Redis 7 ───────────────────────────────────────────────────────────────
+  # ── Kafka ──────────────────────────────────────────────────────────────
+  kafka:
+    image: confluentinc/cp-kafka:7.5.0
+    container_name: fleet-kafka
+    depends_on:
+      zookeeper:
+        condition: service_healthy
+    environment:
+      KAFKA_BROKER_ID: 1
+      KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092,PLAINTEXT_HOST://localhost:29092
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 0
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: "true"
+      KAFKA_LOG_RETENTION_HOURS: 168
+    volumes:
+      - kafka_data:/var/lib/kafka/data
+    ports:
+      - "9092:9092"
+      - "29092:29092"
+    networks: [fleet]
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "kafka-topics", "--bootstrap-server", "localhost:9092", "--list"]
+      interval: 15s
+      timeout: 10s
+      retries: 10
+      start_period: 30s
+
+  # ── Redis ──────────────────────────────────────────────────────────────
   redis:
     image: redis:7-alpine
-    container_name: gpsgo-redis
-    command: redis-server --save 60 1 --loglevel warning
+    container_name: fleet-redis
+    command: redis-server --save 60 1 --loglevel warning --maxmemory 512mb --maxmemory-policy allkeys-lru
     volumes:
       - redis_data:/data
     ports:
       - "6379:6379"
-    networks:
-      - gpsgo
+    networks: [fleet]
+    restart: unless-stopped
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
       interval: 10s
       timeout: 3s
       retries: 5
 
-  # ── NATS with JetStream ───────────────────────────────────────────────────
-  nats:
-    image: nats:2.10-alpine
-    container_name: gpsgo-nats
-    command: ["-js", "-sd", "/data", "-m", "8222"]
+  # ── MQTT Broker (Eclipse Mosquitto) ────────────────────────────────────
+  mosquitto:
+    image: eclipse-mosquitto:2
+    container_name: fleet-mosquitto
     volumes:
-      - nats_data:/data
+      - ./infra/mosquitto:/mosquitto/config:ro
     ports:
-      - "4222:4222"  # client
-      - "8222:8222"  # monitoring
-    networks:
-      - gpsgo
-    healthcheck:
-      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:8222/healthz"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
+      - "1883:1883"
+      - "9001:9001"
+    networks: [fleet]
+    restart: unless-stopped
 
-  # ── DB Migrations ─────────────────────────────────────────────────────────
-  migrate:
-    image: migrate/migrate:v4.17.0
-    container_name: gpsgo-migrate
+  # ── MinIO Object Storage ───────────────────────────────────────────────
+  minio:
+    image: minio/minio:latest
+    container_name: fleet-minio
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: minioadmin
+      MINIO_ROOT_PASSWORD: minioadmin123
     volumes:
-      - ./migrations:/migrations
-    command:
-      - "-path=/migrations"
-      - "-database=postgres://gpsgo:gpsgo@timescaledb:5432/gpsgo?sslmode=disable"
-      - "up"
-    networks:
-      - gpsgo
-    depends_on:
-      timescaledb:
-        condition: service_healthy
-    restart: on-failure
-
-  # ── Ingestion Service ─────────────────────────────────────────────────────
-  ingestion:
-    build:
-      context: .
-      dockerfile: ingestion-service/Dockerfile
-    container_name: gpsgo-ingestion
-    environment:
-      NATS_URL: nats://nats:4222
-      LOG_LEVEL: info
-      PORT_GT06: 5001
-      PORT_TK103: 5002
-      PORT_JT808: 5003
-      PORT_AIS140: 5004
-      PORT_TELTONIKA_TCP: 5027
-      PORT_TELTONIKA_UDP: 5028
+      - minio_data:/data
     ports:
-      - "15001:5001"   # GT06
-      - "15002:5002"   # TK103
-      - "15003:5003"   # JT808
-      - "15004:5004"   # AIS140
-      - "15027:5027"   # Teltonika TCP
-      - "15028:5028/udp" # Teltonika UDP
-    networks:
-      - gpsgo
-    depends_on:
-      nats:
-        condition: service_healthy
-    restart: unless-stopped
-    deploy:
-      resources:
-        limits:
-          memory: 512M
-
-  # ── Stream Processor ──────────────────────────────────────────────────────
-  stream-processor:
-    build:
-      context: .
-      dockerfile: stream-processor/Dockerfile
-    container_name: gpsgo-stream-processor
-    environment:
-      NATS_URL: nats://nats:4222
-      TIMESCALE_DSN: postgres://gpsgo:gpsgo@timescaledb:5432/gpsgo?sslmode=disable
-      REDIS_ADDR: redis:6379
-      LOG_LEVEL: info
-    networks:
-      - gpsgo
-    depends_on:
-      timescaledb:
-        condition: service_healthy
-      redis:
-        condition: service_healthy
-      nats:
-        condition: service_healthy
-      migrate:
-        condition: service_completed_successfully
-    restart: unless-stopped
-
-  # ── API Service ───────────────────────────────────────────────────────────
-  api:
-    build:
-      context: .
-      dockerfile: api-service/Dockerfile
-    container_name: gpsgo-api
-    environment:
-      TIMESCALE_DSN: postgres://gpsgo:gpsgo@timescaledb:5432/gpsgo?sslmode=disable
-      REDIS_ADDR: redis:6379
-      API_PORT: 8080
-      JWT_PRIVATE_KEY_PATH: /run/secrets/jwt_private
-      JWT_PUBLIC_KEY_PATH: /run/secrets/jwt_public
-      LOG_LEVEL: info
-    secrets:
-      - jwt_private
-      - jwt_public
-    ports:
-      - "8080:8080"
-    networks:
-      - gpsgo
-    depends_on:
-      timescaledb:
-        condition: service_healthy
-      redis:
-        condition: service_healthy
-      migrate:
-        condition: service_completed_successfully
+      - "9000:9000"
+      - "9091:9001"
+    networks: [fleet]
     restart: unless-stopped
     healthcheck:
-      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:8080/health"]
-      interval: 15s
-      timeout: 5s
-      retries: 5
+      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      interval: 30s
+      timeout: 20s
+      retries: 3
 
-  # ── WebSocket Service ─────────────────────────────────────────────────────
-  websocket:
-    build:
-      context: .
-      dockerfile: websocket-service/Dockerfile
-    container_name: gpsgo-websocket
-    environment:
-      REDIS_ADDR: redis:6379
-      WS_PORT: 8081
-      JWT_PRIVATE_KEY_PATH: /run/secrets/jwt_private
-      JWT_PUBLIC_KEY_PATH: /run/secrets/jwt_public
-      LOG_LEVEL: info
-    secrets:
-      - jwt_private
-      - jwt_public
+  # ── Loki (Log Aggregation) ─────────────────────────────────────────────
+  loki:
+    image: grafana/loki:2.9.0
+    container_name: fleet-loki
     ports:
-      - "8081:8081"
-    networks:
-      - gpsgo
-    depends_on:
-      redis:
-        condition: service_healthy
+      - "3200:3100"
+    volumes:
+      - loki_data:/loki
+    networks: [fleet]
     restart: unless-stopped
 
-  # ── Maintenance Service ───────────────────────────────────────────────────
-  maintenance:
-    build:
-      context: .
-      dockerfile: maintenance-service/Dockerfile
-    container_name: gpsgo-maintenance
-    environment:
-      DATABASE_URL: postgres://gpsgo:gpsgo@timescaledb:5432/gpsgo?sslmode=disable
-      NATS_URL: nats://nats:4222
-      PORT: "8084"
-      LOG_LEVEL: info
-    ports:
-      - "8084:8084"
-    networks:
-      - gpsgo
-    depends_on:
-      timescaledb:
-        condition: service_healthy
-      nats:
-        condition: service_healthy
-      migrate:
-        condition: service_completed_successfully
-    restart: unless-stopped
-    healthcheck:
-      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:8084/api/v1/health"]
-      interval: 15s
-      timeout: 5s
-      retries: 5
-
-  # ── Report Service ────────────────────────────────────────────────────────
-  report:
-    build:
-      context: .
-      dockerfile: report-service/Dockerfile
-    container_name: gpsgo-report
-    environment:
-      DATABASE_URL: postgres://gpsgo:gpsgo@timescaledb:5432/gpsgo?sslmode=disable
-      NATS_URL: nats://nats:4222
-      REPORT_BASE_URL: http://localhost:8085/reports
-      # S3_BUCKET: gpsgo-reports  # set in production
-      LOG_LEVEL: info
-    networks:
-      - gpsgo
-    depends_on:
-      timescaledb:
-        condition: service_healthy
-      nats:
-        condition: service_healthy
-      migrate:
-        condition: service_completed_successfully
+  # ── Promtail (Log Shipper) ─────────────────────────────────────────────
+  promtail:
+    image: grafana/promtail:2.9.0
+    container_name: fleet-promtail
+    volumes:
+      - /var/lib/docker/containers:/var/lib/docker/containers:ro
+      - ./infra/promtail/config.yml:/etc/promtail/config.yml:ro
+    command: -config.file=/etc/promtail/config.yml
+    networks: [fleet]
     restart: unless-stopped
 
-  # ── Gateway (Reverse Proxy + CORS) ────────────────────────────────────────
-  gateway:
-    build:
-      context: .
-      dockerfile: gateway/Dockerfile
-    container_name: gpsgo-gateway
-    environment:
-      API_SERVICE_URL: http://api:8080
-      WS_SERVICE_URL: http://websocket:8081
-      MAINT_SERVICE_URL: http://maintenance:8084
-      REPORT_SERVICE_URL: http://report:8085
-      CORS_ORIGINS: "http://localhost:5173,http://localhost:3000"
-      PORT: "8000"
-    ports:
-      - "8000:8000"
-    networks:
-      - gpsgo
-    depends_on:
-      api:
-        condition: service_healthy
-    restart: unless-stopped
-    healthcheck:
-      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:8000/health"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-
-  # ── GoAdmin Panel ─────────────────────────────────────────────────────────
-  admin-panel:
-    build:
-      context: .
-      dockerfile: admin-panel/Dockerfile
-    container_name: gpsgo-admin
-    environment:
-      DATABASE_URL: postgres://gpsgo:gpsgo@timescaledb:5432/gpsgo?sslmode=disable
-      DB_HOST: timescaledb
-      DB_PORT: "5432"
-      DB_NAME: gpsgo
-      DB_USER: gpsgo
-      DB_PASSWORD: gpsgo
-      NATS_URL: nats://nats:4222
-      ADMIN_PORT: "8090"
-      GIN_MODE: debug
-    ports:
-      - "8090:8090"
-    networks:
-      - gpsgo
-    depends_on:
-      timescaledb:
-        condition: service_healthy
-      migrate:
-        condition: service_completed_successfully
-    restart: unless-stopped
-
-  # ── Frontend ──────────────────────────────────────────────────────────────
-  frontend:
-    build:
-      context: ./frontend
-      dockerfile: Dockerfile
-    container_name: gpsgo-frontend
-    environment:
-      VITE_API_URL: http://localhost:8000
-      VITE_WS_URL: ws://localhost:8000/ws
-    ports:
-      - "3000:80"
-    networks:
-      - gpsgo
-    depends_on:
-      - api
-      - websocket
-    restart: unless-stopped
-
-  # ── Prometheus ────────────────────────────────────────────────────────────
+  # ── Prometheus ─────────────────────────────────────────────────────────
   prometheus:
     image: prom/prometheus:v2.52.0
-    container_name: gpsgo-prometheus
+    container_name: fleet-prometheus
     volumes:
       - ./infra/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
       - prometheus_data:/prometheus
     command:
       - "--config.file=/etc/prometheus/prometheus.yml"
       - "--storage.tsdb.retention.time=15d"
+      - "--web.enable-lifecycle"
     ports:
       - "9090:9090"
-    networks:
-      - gpsgo
+    networks: [fleet]
     restart: unless-stopped
 
-  # ── Grafana ───────────────────────────────────────────────────────────────
+  # ── Grafana ────────────────────────────────────────────────────────────
   grafana:
     image: grafana/grafana:11.0.0
-    container_name: gpsgo-grafana
+    container_name: fleet-grafana
     environment:
       GF_SECURITY_ADMIN_PASSWORD: admin
       GF_USERS_ALLOW_SIGN_UP: "false"
+      GF_FEATURE_TOGGLES_ENABLE: tempoSearch,tempoBackendSearch
     volumes:
       - grafana_data:/var/lib/grafana
       - ./infra/grafana/provisioning:/etc/grafana/provisioning:ro
     ports:
-      - "3001:3000"
-    networks:
-      - gpsgo
-    depends_on:
-      - prometheus
+      - "3100:3000"
+    networks: [fleet]
+    depends_on: [prometheus, loki]
     restart: unless-stopped
+
+  # ═══════════════════════════════════════════════════════════════════════
+  # PER-SERVICE POSTGRESQL DATABASES
+  # ═══════════════════════════════════════════════════════════════════════
+
+  postgres-m01:
+    image: postgres:15-alpine
+    container_name: fleet-postgres-m01
+    environment: { POSTGRES_DB: fleet_tracking_db, POSTGRES_USER: fleet, POSTGRES_PASSWORD: fleetpass }
+    volumes: ["pgdata_m01:/var/lib/postgresql/data"]
+    ports: ["5401:5432"]
+    networks: [fleet]
+    healthcheck: &pg_health
+      test: ["CMD-SHELL", "pg_isready -U fleet"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    restart: unless-stopped
+
+  postgres-m02:
+    image: postgres:15-alpine
+    container_name: fleet-postgres-m02
+    environment: { POSTGRES_DB: fleet_routes_db, POSTGRES_USER: fleet, POSTGRES_PASSWORD: fleetpass }
+    volumes: ["pgdata_m02:/var/lib/postgresql/data"]
+    ports: ["5402:5432"]
+    networks: [fleet]
+    healthcheck: *pg_health
+    restart: unless-stopped
+
+  postgres-m03:
+    image: postgres:15-alpine
+    container_name: fleet-postgres-m03
+    environment: { POSTGRES_DB: fleet_geofencing_db, POSTGRES_USER: fleet, POSTGRES_PASSWORD: fleetpass }
+    volumes: ["pgdata_m03:/var/lib/postgresql/data"]
+    ports: ["5403:5432"]
+    networks: [fleet]
+    healthcheck: *pg_health
+    restart: unless-stopped
+
+  postgres-m04:
+    image: postgres:15-alpine
+    container_name: fleet-postgres-m04
+    environment: { POSTGRES_DB: fleet_alerts_db, POSTGRES_USER: fleet, POSTGRES_PASSWORD: fleetpass }
+    volumes: ["pgdata_m04:/var/lib/postgresql/data"]
+    ports: ["5404:5432"]
+    networks: [fleet]
+    healthcheck: *pg_health
+    restart: unless-stopped
+
+  postgres-m05:
+    image: postgres:15-alpine
+    container_name: fleet-postgres-m05
+    environment: { POSTGRES_DB: fleet_reports_db, POSTGRES_USER: fleet, POSTGRES_PASSWORD: fleetpass }
+    volumes: ["pgdata_m05:/var/lib/postgresql/data"]
+    ports: ["5405:5432"]
+    networks: [fleet]
+    healthcheck: *pg_health
+    restart: unless-stopped
+
+  postgres-m06:
+    image: postgres:15-alpine
+    container_name: fleet-postgres-m06
+    environment: { POSTGRES_DB: fleet_vehicles_db, POSTGRES_USER: fleet, POSTGRES_PASSWORD: fleetpass }
+    volumes: ["pgdata_m06:/var/lib/postgresql/data"]
+    ports: ["5406:5432"]
+    networks: [fleet]
+    healthcheck: *pg_health
+    restart: unless-stopped
+
+  postgres-m07:
+    image: postgres:15-alpine
+    container_name: fleet-postgres-m07
+    environment: { POSTGRES_DB: fleet_drivers_db, POSTGRES_USER: fleet, POSTGRES_PASSWORD: fleetpass }
+    volumes: ["pgdata_m07:/var/lib/postgresql/data"]
+    ports: ["5407:5432"]
+    networks: [fleet]
+    healthcheck: *pg_health
+    restart: unless-stopped
+
+  postgres-m08:
+    image: postgres:15-alpine
+    container_name: fleet-postgres-m08
+    environment: { POSTGRES_DB: fleet_maintenance_db, POSTGRES_USER: fleet, POSTGRES_PASSWORD: fleetpass }
+    volumes: ["pgdata_m08:/var/lib/postgresql/data"]
+    ports: ["5408:5432"]
+    networks: [fleet]
+    healthcheck: *pg_health
+    restart: unless-stopped
+
+  postgres-m09:
+    image: postgres:15-alpine
+    container_name: fleet-postgres-m09
+    environment: { POSTGRES_DB: fleet_fuel_db, POSTGRES_USER: fleet, POSTGRES_PASSWORD: fleetpass }
+    volumes: ["pgdata_m09:/var/lib/postgresql/data"]
+    ports: ["5409:5432"]
+    networks: [fleet]
+    healthcheck: *pg_health
+    restart: unless-stopped
+
+  postgres-m10:
+    image: postgres:15-alpine
+    container_name: fleet-postgres-m10
+    environment: { POSTGRES_DB: fleet_tenants_db, POSTGRES_USER: fleet, POSTGRES_PASSWORD: fleetpass }
+    volumes: ["pgdata_m10:/var/lib/postgresql/data"]
+    ports: ["5410:5432"]
+    networks: [fleet]
+    healthcheck: *pg_health
+    restart: unless-stopped
+
+  postgres-m11:
+    image: postgres:15-alpine
+    container_name: fleet-postgres-m11
+    environment: { POSTGRES_DB: fleet_users_db, POSTGRES_USER: fleet, POSTGRES_PASSWORD: fleetpass }
+    volumes: ["pgdata_m11:/var/lib/postgresql/data"]
+    ports: ["5411:5432"]
+    networks: [fleet]
+    healthcheck: *pg_health
+    restart: unless-stopped
+
+  postgres-m12:
+    image: postgres:15-alpine
+    container_name: fleet-postgres-m12
+    environment: { POSTGRES_DB: fleet_devices_db, POSTGRES_USER: fleet, POSTGRES_PASSWORD: fleetpass }
+    volumes: ["pgdata_m12:/var/lib/postgresql/data"]
+    ports: ["5412:5432"]
+    networks: [fleet]
+    healthcheck: *pg_health
+    restart: unless-stopped
+
+  postgres-m13:
+    image: postgres:15-alpine
+    container_name: fleet-postgres-m13
+    environment: { POSTGRES_DB: fleet_security_db, POSTGRES_USER: fleet, POSTGRES_PASSWORD: fleetpass }
+    volumes: ["pgdata_m13:/var/lib/postgresql/data"]
+    ports: ["5413:5432"]
+    networks: [fleet]
+    healthcheck: *pg_health
+    restart: unless-stopped
+
+  postgres-m14:
+    image: postgres:15-alpine
+    container_name: fleet-postgres-m14
+    environment: { POSTGRES_DB: fleet_billing_db, POSTGRES_USER: fleet, POSTGRES_PASSWORD: fleetpass }
+    volumes: ["pgdata_m14:/var/lib/postgresql/data"]
+    ports: ["5414:5432"]
+    networks: [fleet]
+    healthcheck: *pg_health
+    restart: unless-stopped
+
+  postgres-m15:
+    image: postgres:15-alpine
+    container_name: fleet-postgres-m15
+    environment: { POSTGRES_DB: fleet_admin_db, POSTGRES_USER: fleet, POSTGRES_PASSWORD: fleetpass }
+    volumes: ["pgdata_m15:/var/lib/postgresql/data"]
+    ports: ["5415:5432"]
+    networks: [fleet]
+    healthcheck: *pg_health
+    restart: unless-stopped
+
+  postgres-m16:
+    image: postgres:15-alpine
+    container_name: fleet-postgres-m16
+    environment: { POSTGRES_DB: fleet_activity_db, POSTGRES_USER: fleet, POSTGRES_PASSWORD: fleetpass }
+    volumes: ["pgdata_m16:/var/lib/postgresql/data"]
+    ports: ["5416:5432"]
+    networks: [fleet]
+    healthcheck: *pg_health
+    restart: unless-stopped
+
+  postgres-m17:
+    image: postgres:15-alpine
+    container_name: fleet-postgres-m17
+    environment: { POSTGRES_DB: fleet_roadmap_db, POSTGRES_USER: fleet, POSTGRES_PASSWORD: fleetpass }
+    volumes: ["pgdata_m17:/var/lib/postgresql/data"]
+    ports: ["5417:5432"]
+    networks: [fleet]
+    healthcheck: *pg_health
+    restart: unless-stopped
+
+  # ═══════════════════════════════════════════════════════════════════════
+  # MICROSERVICES
+  # ═══════════════════════════════════════════════════════════════════════
+
+  # ── API Gateway ────────────────────────────────────────────────────────
+  gateway:
+    build:
+      context: .
+      dockerfile: gateway/Dockerfile
+    container_name: fleet-gateway
+    ports:
+      - "3000:3000"
+    environment:
+      PORT: "3000"
+      JWT_PUBLIC_KEY_PATH: /run/secrets/jwt_public
+      KAFKA_BROKERS: kafka:9092
+      REDIS_ADDR: redis:6379
+      CORS_ALLOWED_ORIGINS: "http://localhost:3001,http://localhost:3002"
+    secrets: [jwt_public]
+    networks: [fleet]
+    depends_on:
+      kafka:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:3000/health/gateway"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+
+  # ── M01 Live Tracking ──────────────────────────────────────────────────
+  m01-live-tracking:
+    build:
+      context: .
+      dockerfile: services/m01-live-tracking/Dockerfile
+    container_name: fleet-m01
+    ports:
+      - "4001:4001"
+    environment:
+      PORT: "4001"
+      DATABASE_URL: postgres://fleet:fleetpass@postgres-m01:5432/fleet_tracking_db?sslmode=disable
+      KAFKA_BROKERS: kafka:9092
+      REDIS_ADDR: redis:6379
+      MQTT_BROKER: tcp://mosquitto:1883
+    networks: [fleet]
+    depends_on:
+      postgres-m01:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+      mosquitto:
+        condition: service_started
+    restart: unless-stopped
+    healthcheck: &svc_health
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:4001/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+
+  # ── M02 Routes & Trips ─────────────────────────────────────────────────
+  m02-routes-trips:
+    build:
+      context: .
+      dockerfile: services/m02-routes-trips/Dockerfile
+    container_name: fleet-m02
+    ports:
+      - "4002:4002"
+    environment:
+      PORT: "4002"
+      DATABASE_URL: postgres://fleet:fleetpass@postgres-m02:5432/fleet_routes_db?sslmode=disable
+      KAFKA_BROKERS: kafka:9092
+      REDIS_ADDR: redis:6379
+    networks: [fleet]
+    depends_on:
+      postgres-m02:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:4002/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+
+  # ── M03 Geofencing ─────────────────────────────────────────────────────
+  m03-geofencing:
+    build:
+      context: .
+      dockerfile: services/m03-geofencing/Dockerfile
+    container_name: fleet-m03
+    ports:
+      - "4003:4003"
+    environment:
+      PORT: "4003"
+      DATABASE_URL: postgres://fleet:fleetpass@postgres-m03:5432/fleet_geofencing_db?sslmode=disable
+      KAFKA_BROKERS: kafka:9092
+      REDIS_ADDR: redis:6379
+    networks: [fleet]
+    depends_on:
+      postgres-m03:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:4003/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+
+  # ── M04 Alerts ─────────────────────────────────────────────────────────
+  m04-alerts:
+    build:
+      context: .
+      dockerfile: services/m04-alerts/Dockerfile
+    container_name: fleet-m04
+    ports:
+      - "4004:4004"
+    environment:
+      PORT: "4004"
+      DATABASE_URL: postgres://fleet:fleetpass@postgres-m04:5432/fleet_alerts_db?sslmode=disable
+      KAFKA_BROKERS: kafka:9092
+      REDIS_ADDR: redis:6379
+      SMTP_HOST: ""
+      SMTP_PORT: "587"
+      SMTP_USER: ""
+      SMTP_PASS: ""
+      TWILIO_SID: ""
+      TWILIO_TOKEN: ""
+      TWILIO_FROM: ""
+    networks: [fleet]
+    depends_on:
+      postgres-m04:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:4004/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+
+  # ── M05 Reports ────────────────────────────────────────────────────────
+  m05-reports:
+    build:
+      context: .
+      dockerfile: services/m05-reports/Dockerfile
+    container_name: fleet-m05
+    ports:
+      - "4005:4005"
+    environment:
+      PORT: "4005"
+      DATABASE_URL: postgres://fleet:fleetpass@postgres-m05:5432/fleet_reports_db?sslmode=disable
+      KAFKA_BROKERS: kafka:9092
+      MINIO_ENDPOINT: minio:9000
+      MINIO_ACCESS_KEY: minioadmin
+      MINIO_SECRET_KEY: minioadmin123
+      MINIO_BUCKET: fleet-reports
+    networks: [fleet]
+    depends_on:
+      postgres-m05:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:4005/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+
+  # ── M06 Vehicles ───────────────────────────────────────────────────────
+  m06-vehicles:
+    build:
+      context: .
+      dockerfile: services/m06-vehicles/Dockerfile
+    container_name: fleet-m06
+    ports:
+      - "4006:4006"
+    environment:
+      PORT: "4006"
+      DATABASE_URL: postgres://fleet:fleetpass@postgres-m06:5432/fleet_vehicles_db?sslmode=disable
+      KAFKA_BROKERS: kafka:9092
+      REDIS_ADDR: redis:6379
+      MINIO_ENDPOINT: minio:9000
+      MINIO_ACCESS_KEY: minioadmin
+      MINIO_SECRET_KEY: minioadmin123
+      MINIO_BUCKET: fleet-documents
+    networks: [fleet]
+    depends_on:
+      postgres-m06:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:4006/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+
+  # ── M07 Drivers ────────────────────────────────────────────────────────
+  m07-drivers:
+    build:
+      context: .
+      dockerfile: services/m07-drivers/Dockerfile
+    container_name: fleet-m07
+    ports:
+      - "4007:4007"
+    environment:
+      PORT: "4007"
+      DATABASE_URL: postgres://fleet:fleetpass@postgres-m07:5432/fleet_drivers_db?sslmode=disable
+      KAFKA_BROKERS: kafka:9092
+      REDIS_ADDR: redis:6379
+    networks: [fleet]
+    depends_on:
+      postgres-m07:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:4007/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+
+  # ── M08 Maintenance ────────────────────────────────────────────────────
+  m08-maintenance:
+    build:
+      context: .
+      dockerfile: services/m08-maintenance/Dockerfile
+    container_name: fleet-m08
+    ports:
+      - "4008:4008"
+    environment:
+      PORT: "4008"
+      DATABASE_URL: postgres://fleet:fleetpass@postgres-m08:5432/fleet_maintenance_db?sslmode=disable
+      KAFKA_BROKERS: kafka:9092
+      REDIS_ADDR: redis:6379
+    networks: [fleet]
+    depends_on:
+      postgres-m08:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:4008/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+
+  # ── M09 Fuel ───────────────────────────────────────────────────────────
+  m09-fuel:
+    build:
+      context: .
+      dockerfile: services/m09-fuel/Dockerfile
+    container_name: fleet-m09
+    ports:
+      - "4009:4009"
+    environment:
+      PORT: "4009"
+      DATABASE_URL: postgres://fleet:fleetpass@postgres-m09:5432/fleet_fuel_db?sslmode=disable
+      KAFKA_BROKERS: kafka:9092
+      REDIS_ADDR: redis:6379
+    networks: [fleet]
+    depends_on:
+      postgres-m09:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:4009/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+
+  # ── M10 Multi-Tenant ───────────────────────────────────────────────────
+  m10-multi-tenant:
+    build:
+      context: .
+      dockerfile: services/m10-multi-tenant/Dockerfile
+    container_name: fleet-m10
+    ports:
+      - "4010:4010"
+    environment:
+      PORT: "4010"
+      DATABASE_URL: postgres://fleet:fleetpass@postgres-m10:5432/fleet_tenants_db?sslmode=disable
+      KAFKA_BROKERS: kafka:9092
+      REDIS_ADDR: redis:6379
+    networks: [fleet]
+    depends_on:
+      postgres-m10:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:4010/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+
+  # ── M11 Users & Access ─────────────────────────────────────────────────
+  m11-users-access:
+    build:
+      context: .
+      dockerfile: services/m11-users-access/Dockerfile
+    container_name: fleet-m11
+    ports:
+      - "4011:4011"
+    environment:
+      PORT: "4011"
+      DATABASE_URL: postgres://fleet:fleetpass@postgres-m11:5432/fleet_users_db?sslmode=disable
+      JWT_PRIVATE_KEY_PATH: /run/secrets/jwt_private
+      JWT_PUBLIC_KEY_PATH: /run/secrets/jwt_public
+      KAFKA_BROKERS: kafka:9092
+      REDIS_ADDR: redis:6379
+      ACCESS_TOKEN_TTL: "15m"
+      REFRESH_TOKEN_TTL: "7d"
+    secrets: [jwt_private, jwt_public]
+    networks: [fleet]
+    depends_on:
+      postgres-m11:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:4011/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+
+  # ── M12 Devices ────────────────────────────────────────────────────────
+  m12-devices:
+    build:
+      context: .
+      dockerfile: services/m12-devices/Dockerfile
+    container_name: fleet-m12
+    ports:
+      - "4012:4012"
+    environment:
+      PORT: "4012"
+      DATABASE_URL: postgres://fleet:fleetpass@postgres-m12:5432/fleet_devices_db?sslmode=disable
+      KAFKA_BROKERS: kafka:9092
+      REDIS_ADDR: redis:6379
+    networks: [fleet]
+    depends_on:
+      postgres-m12:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:4012/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+
+  # ── M13 Security ───────────────────────────────────────────────────────
+  m13-security:
+    build:
+      context: .
+      dockerfile: services/m13-security/Dockerfile
+    container_name: fleet-m13
+    ports:
+      - "4013:4013"
+    environment:
+      PORT: "4013"
+      DATABASE_URL: postgres://fleet:fleetpass@postgres-m13:5432/fleet_security_db?sslmode=disable
+      KAFKA_BROKERS: kafka:9092
+      REDIS_ADDR: redis:6379
+    networks: [fleet]
+    depends_on:
+      postgres-m13:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:4013/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+
+  # ── M14 Billing ────────────────────────────────────────────────────────
+  m14-billing:
+    build:
+      context: .
+      dockerfile: services/m14-billing/Dockerfile
+    container_name: fleet-m14
+    ports:
+      - "4014:4014"
+    environment:
+      PORT: "4014"
+      DATABASE_URL: postgres://fleet:fleetpass@postgres-m14:5432/fleet_billing_db?sslmode=disable
+      KAFKA_BROKERS: kafka:9092
+      STRIPE_SECRET_KEY: ${STRIPE_SECRET_KEY:-sk_test_placeholder}
+      STRIPE_WEBHOOK_SECRET: ${STRIPE_WEBHOOK_SECRET:-whsec_placeholder}
+    networks: [fleet]
+    depends_on:
+      postgres-m14:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:4014/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+
+  # ── M15 Admin Panel API ────────────────────────────────────────────────
+  m15-admin-panel:
+    build:
+      context: .
+      dockerfile: services/m15-admin-panel/Dockerfile
+    container_name: fleet-m15
+    ports:
+      - "4015:4015"
+    environment:
+      PORT: "4015"
+      DATABASE_URL: postgres://fleet:fleetpass@postgres-m15:5432/fleet_admin_db?sslmode=disable
+      KAFKA_BROKERS: kafka:9092
+      ADMIN_JWT_SECRET: ${ADMIN_JWT_SECRET:-super-admin-secret-change-in-prod}
+    networks: [fleet]
+    depends_on:
+      postgres-m15:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:4015/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+
+  # ── M16 Activity Log ───────────────────────────────────────────────────
+  m16-activity-log:
+    build:
+      context: .
+      dockerfile: services/m16-activity-log/Dockerfile
+    container_name: fleet-m16
+    ports:
+      - "4016:4016"
+    environment:
+      PORT: "4016"
+      DATABASE_URL: postgres://fleet:fleetpass@postgres-m16:5432/fleet_activity_db?sslmode=disable
+      KAFKA_BROKERS: kafka:9092
+      REDIS_ADDR: redis:6379
+    networks: [fleet]
+    depends_on:
+      postgres-m16:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:4016/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+
+  # ── M17 Roadmap ────────────────────────────────────────────────────────
+  m17-roadmap:
+    build:
+      context: .
+      dockerfile: services/m17-roadmap/Dockerfile
+    container_name: fleet-m17
+    ports:
+      - "4017:4017"
+    environment:
+      PORT: "4017"
+      DATABASE_URL: postgres://fleet:fleetpass@postgres-m17:5432/fleet_roadmap_db?sslmode=disable
+      KAFKA_BROKERS: kafka:9092
+    networks: [fleet]
+    depends_on:
+      postgres-m17:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:4017/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+
+  # ─── Tenant Dashboard (Next.js 14) ──────────────────────────────────────
+  tenant-dashboard:
+    build:
+      context: ./frontend/tenant-dashboard
+      dockerfile: Dockerfile
+    container_name: trackora-tenant-dashboard
+    ports:
+      - "3001:3000"
+    environment:
+      NEXT_PUBLIC_API_URL: http://localhost:3000
+      NEXT_PUBLIC_WS_URL: ws://localhost:4001
+    networks: [fleet]
+    depends_on: [gateway]
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:3000"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # ─── Super Admin Panel (Next.js 14) ─────────────────────────────────────
+  admin-dashboard:
+    build:
+      context: ./frontend/admin-panel
+      dockerfile: Dockerfile
+    container_name: trackora-admin-dashboard
+    ports:
+      - "3002:3000"
+    environment:
+      NEXT_PUBLIC_ADMIN_API_URL: http://localhost:4015
+    networks: [fleet]
+    depends_on: [m15-admin-panel]
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:3000"]
+      interval: 30s
+      timeout: 10s
+      retries: 3

@@ -57,24 +57,27 @@ type Pipeline struct {
 
 	tripMachine *TripMachine
 	geoEngine   *GeofenceEngine
-	alertsEval  *AlertEvaluator
+	rulesEngine *RulesEngine
 	notifMgr    *NotificationManager
+	fuelDetector *FuelAnomalyDetector
 }
 
 // NewPipeline constructs the enrichment pipeline.
 func NewPipeline(pool *pgxpool.Pool, rdb *redis.Client, logger *zap.Logger) *Pipeline {
 	p := &Pipeline{
-		logger:      logger,
-		tripMachine: NewTripMachine(pool, rdb, logger),
-		geoEngine:   NewGeofenceEngine(pool, logger),
-		alertsEval:  NewAlertEvaluator(pool, logger),
-		notifMgr:    NewNotificationManager(logger),
+		logger:       logger,
+		tripMachine:  NewTripMachine(pool, rdb, logger),
+		geoEngine:    NewGeofenceEngine(pool, logger),
+		rulesEngine:  NewRulesEngine(pool, rdb, logger),
+		fuelDetector: NewFuelAnomalyDetector(pool, rdb, logger),
+		notifMgr:     NewNotificationManager(logger),
 	}
 	p.enrichers = []Enricher{
 		p.enrichIOFields,
 		p.enrichTripState,
 		p.enrichGeofence,
 		p.enrichAlerts,
+		p.enrichFuelAnomaly,
 	}
 	return p
 }
@@ -168,7 +171,11 @@ func (p *Pipeline) enrichGeofence(ctx context.Context, rec *EnrichedRecord) {
 }
 
 func (p *Pipeline) enrichAlerts(ctx context.Context, rec *EnrichedRecord) {
-	p.alertsEval.Evaluate(ctx, rec)
+	p.rulesEngine.Evaluate(ctx, rec)
 }
 
-
+func (p *Pipeline) enrichFuelAnomaly(ctx context.Context, rec *EnrichedRecord) {
+	if rec.FuelLevel > 0 {
+		p.fuelDetector.Check(ctx, rec)
+	}
+}

@@ -19,5 +19,5 @@ WORKDIR /app
 COPY --from=builder /build/maintenance-service .
 EXPOSE 8084
 HEALTHCHECK --interval=15s --timeout=5s --retries=3 \
-  CMD wget --quiet --tries=1 --spider http://localhost:8084/api/v1/health || exit 1
+  CMD wget --quiet --tries=1 --output-document=/dev/null http://localhost:8084/api/v1/health || exit 1
 ENTRYPOINT ["./maintenance-service"]

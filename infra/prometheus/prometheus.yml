@@ -2,96 +2,128 @@ global:
   scrape_interval:     15s
   evaluation_interval: 15s
   external_labels:
-    cluster: 'gpsgo-local'
+    cluster: 'fleet-local'
     env: 'dev'
-
-# Alertmanager (optional — wire up later)
-# alerting:
-#   alertmanagers:
-#     - static_configs:
-#         - targets: ['alertmanager:9093']
 
 scrape_configs:
 
-  # ── Application services ─────────────────────────────────────────────────
-  - job_name: 'ingestion-service'
-    metrics_path: /metrics
-    static_configs:
-      - targets: ['ingestion:9090']
-        labels:
-          service: ingestion-service
-
-  - job_name: 'stream-processor'
-    metrics_path: /metrics
-    static_configs:
-      - targets: ['stream-processor:9091']
-        labels:
-          service: stream-processor
-
-  - job_name: 'api-service'
-    metrics_path: /metrics
-    static_configs:
-      - targets: ['api:9092']
-        labels:
-          service: api-service
-
-  - job_name: 'websocket-service'
-    metrics_path: /metrics
-    static_configs:
-      - targets: ['websocket:9093']
-        labels:
-          service: websocket-service
-
-  - job_name: 'maintenance-service'
-    metrics_path: /metrics
-    static_configs:
-      - targets: ['maintenance:9094']
-        labels:
-          service: maintenance-service
-
-  - job_name: 'report-service'
-    metrics_path: /metrics
-    static_configs:
-      - targets: ['report:9095']
-        labels:
-          service: report-service
-
+  # ── API Gateway ───────────────────────────────────────────────────────
   - job_name: 'gateway'
     metrics_path: /metrics
     static_configs:
-      - targets: ['gateway:9096']
-        labels:
-          service: gateway
+      - targets: ['gateway:3000']
+        labels: { service: gateway }
 
-  - job_name: 'admin-panel'
+  # ── Microservices ─────────────────────────────────────────────────────
+  - job_name: 'm01-live-tracking'
     metrics_path: /metrics
     static_configs:
-      - targets: ['admin-panel:9097']
-        labels:
-          service: admin-panel
+      - targets: ['m01-live-tracking:4001']
+        labels: { service: m01-live-tracking }
 
-  # ── Infrastructure ────────────────────────────────────────────────────────
-  - job_name: 'nats'
+  - job_name: 'm02-routes-trips'
+    metrics_path: /metrics
     static_configs:
-      - targets: ['nats:7777']
-        labels:
-          service: nats
+      - targets: ['m02-routes-trips:4002']
+        labels: { service: m02-routes-trips }
 
-  - job_name: 'redis-exporter'
+  - job_name: 'm03-geofencing'
+    metrics_path: /metrics
     static_configs:
-      - targets: ['redis:9121']
-        labels:
-          service: redis
+      - targets: ['m03-geofencing:4003']
+        labels: { service: m03-geofencing }
 
-  - job_name: 'postgres-exporter'
+  - job_name: 'm04-alerts'
+    metrics_path: /metrics
     static_configs:
-      - targets: ['timescaledb:9187']
-        labels:
-          service: timescaledb
+      - targets: ['m04-alerts:4004']
+        labels: { service: m04-alerts }
 
-  # ── Self-monitoring ───────────────────────────────────────────────────────
+  - job_name: 'm05-reports'
+    metrics_path: /metrics
+    static_configs:
+      - targets: ['m05-reports:4005']
+        labels: { service: m05-reports }
+
+  - job_name: 'm06-vehicles'
+    metrics_path: /metrics
+    static_configs:
+      - targets: ['m06-vehicles:4006']
+        labels: { service: m06-vehicles }
+
+  - job_name: 'm07-drivers'
+    metrics_path: /metrics
+    static_configs:
+      - targets: ['m07-drivers:4007']
+        labels: { service: m07-drivers }
+
+  - job_name: 'm08-maintenance'
+    metrics_path: /metrics
+    static_configs:
+      - targets: ['m08-maintenance:4008']
+        labels: { service: m08-maintenance }
+
+  - job_name: 'm09-fuel'
+    metrics_path: /metrics
+    static_configs:
+      - targets: ['m09-fuel:4009']
+        labels: { service: m09-fuel }
+
+  - job_name: 'm10-multi-tenant'
+    metrics_path: /metrics
+    static_configs:
+      - targets: ['m10-multi-tenant:4010']
+        labels: { service: m10-multi-tenant }
+
+  - job_name: 'm11-users-access'
+    metrics_path: /metrics
+    static_configs:
+      - targets: ['m11-users-access:4011']
+        labels: { service: m11-users-access }
+
+  - job_name: 'm12-devices'
+    metrics_path: /metrics
+    static_configs:
+      - targets: ['m12-devices:4012']
+        labels: { service: m12-devices }
+
+  - job_name: 'm13-security'
+    metrics_path: /metrics
+    static_configs:
+      - targets: ['m13-security:4013']
+        labels: { service: m13-security }
+
+  - job_name: 'm14-billing'
+    metrics_path: /metrics
+    static_configs:
+      - targets: ['m14-billing:4014']
+        labels: { service: m14-billing }
+
+  - job_name: 'm15-admin-panel'
+    metrics_path: /metrics
+    static_configs:
+      - targets: ['m15-admin-panel:4015']
+        labels: { service: m15-admin-panel }
+
+  - job_name: 'm16-activity-log'
+    metrics_path: /metrics
+    static_configs:
+      - targets: ['m16-activity-log:4016']
+        labels: { service: m16-activity-log }
+
+  - job_name: 'm17-roadmap'
+    metrics_path: /metrics
+    static_configs:
+      - targets: ['m17-roadmap:4017']
+        labels: { service: m17-roadmap }
+
+  # ── Infrastructure ─────────────────────────────────────────────────────
+  - job_name: 'redis'
+    static_configs:
+      - targets: ['redis:6379']
+        labels: { service: redis }
+
   - job_name: 'prometheus'
     static_configs:
       - targets: ['localhost:9090']
-        labels:
-          service: prometheus
+        labels: { service: prometheus }

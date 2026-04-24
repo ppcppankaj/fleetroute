@@ -4,6 +4,7 @@ import (
 	"database/sql"
 	"time"
 
+	"github.com/GoAdminGroup/go-admin/context"
 	"github.com/GoAdminGroup/go-admin/modules/db"
 	"github.com/GoAdminGroup/go-admin/plugins/admin/modules/table"
 	"github.com/GoAdminGroup/go-admin/template/types"
@@ -29,7 +30,7 @@ func GetGenerators(pool *sql.DB) table.GeneratorList {
 // ── Device Registry ──────────────────────────────────────────────────────────
 
 func DeviceTable(pool *sql.DB) table.Generator {
-	return func(ctx *table.Context) table.Table {
+	return func(ctx *context.Context) table.Table {
 		t := table.NewDefaultTable(table.DefaultConfigWithDriverAndConnection(
 			db.DriverPostgresql, "default",
 		))
@@ -79,13 +80,17 @@ func DeviceTable(pool *sql.DB) table.Generator {
 		info.SetTable("devices").SetTitle("Device Registry").SetDescription("All registered GPS devices across all tenants")
 
 		info.AddActionButton("Force Disconnect", action.Ajax("force_disconnect",
-			func(ctx *action.AjaxPayload) (string, error) {
+			func(ctx *context.Context) (success bool, msg string, data interface{}) {
 				// POST to ingestion service connection registry
-				return "Force disconnect queued", nil
+				return true, "Force disconnect queued", ""
 			}))
-		info.AddActionButton("View Packets", action.PopupWithIframe("/admin/custom/packet-inspector?imei={{.Id}}", "", "", "950px", "600px"))
-		info.AddExportButton()
-		info.AddFilterButton()
+		info.AddActionButton("View Packets", action.PopUpWithIframe(
+			"view_packets",
+			"Packet Inspector",
+			action.IframeData{Src: "/admin/custom/packet-inspector?imei={{.Id}}"},
+			"950px",
+			"600px",
+		))
 
 		// Form for editing devices
 		formList := t.GetForm()
@@ -115,7 +120,7 @@ func DeviceTable(pool *sql.DB) table.Generator {
 // ── Tenant Management ─────────────────────────────────────────────────────────
 
 func TenantTable(pool *sql.DB) table.Generator {
-	return func(ctx *table.Context) table.Table {
+	return func(ctx *context.Context) table.Table {
 		t := table.NewDefaultTable(table.DefaultConfigWithDriverAndConnection(
 			db.DriverPostgresql, "default",
 		))
@@ -144,7 +149,6 @@ func TenantTable(pool *sql.DB) table.Generator {
 			})
 		info.AddField("Created", "created_at", db.Timestamptz).FieldSortable()
 		info.SetTable("tenants").SetTitle("Tenant Management").SetDescription("All platform tenants")
-		info.AddExportButton()
 
 		formList := t.GetForm()
 		formList.AddField("Company Name", "name", db.Varchar, form.Text).FieldMust()
@@ -171,7 +175,7 @@ func TenantTable(pool *sql.DB) table.Generator {
 // ── Alert Rules ───────────────────────────────────────────────────────────────
 
 func AlertRulesTable(pool *sql.DB) table.Generator {
-	return func(ctx *table.Context) table.Table {
+	return func(ctx *context.Context) table.Table {
 		t := table.NewDefaultTable(table.DefaultConfigWithDriverAndConnection(
 			db.DriverPostgresql, "default",
 		))
@@ -207,7 +211,7 @@ func AlertRulesTable(pool *sql.DB) table.Generator {
 // ── Alerts History ───────────────────────────────────────────────────────────
 
 func AlertsHistoryTable(pool *sql.DB) table.Generator {
-	return func(ctx *table.Context) table.Table {
+	return func(ctx *context.Context) table.Table {
 		t := table.NewDefaultTable(table.DefaultConfigWithDriverAndConnection(
 			db.DriverPostgresql, "default",
 		))
@@ -229,8 +233,6 @@ func AlertsHistoryTable(pool *sql.DB) table.Generator {
 		info.AddField("Triggered", "triggered_at", db.Timestamptz).FieldSortable()
 		info.AddField("Acknowledged", "acknowledged_at", db.Timestamptz)
 		info.SetTable("alerts").SetTitle("Alert History").SetDescription("Cross-tenant alert history")
-		info.AddExportButton()
-		info.AddFilterButton()
 		return t
 	}
 }
@@ -238,7 +240,7 @@ func AlertsHistoryTable(pool *sql.DB) table.Generator {
 // ── Report Jobs ───────────────────────────────────────────────────────────────
 
 func ReportJobsTable(pool *sql.DB) table.Generator {
-	return func(ctx *table.Context) table.Table {
+	return func(ctx *context.Context) table.Table {
 		t := table.NewDefaultTable(table.DefaultConfigWithDriverAndConnection(
 			db.DriverPostgresql, "default",
 		))
@@ -272,7 +274,6 @@ func ReportJobsTable(pool *sql.DB) table.Generator {
 		info.AddField("Requested", "created_at", db.Timestamptz).FieldSortable()
 		info.AddField("Completed", "completed_at", db.Timestamptz)
 		info.SetTable("report_jobs").SetTitle("Report Jobs").SetDescription("All report generation jobs across tenants")
-		info.AddFilterButton()
 		return t
 	}
 }
@@ -280,7 +281,7 @@ func ReportJobsTable(pool *sql.DB) table.Generator {
 // ── Firmware Registry ─────────────────────────────────────────────────────────
 
 func FirmwareRegistryTable(pool *sql.DB) table.Generator {
-	return func(ctx *table.Context) table.Table {
+	return func(ctx *context.Context) table.Table {
 		t := table.NewDefaultTable(table.DefaultConfigWithDriverAndConnection(
 			db.DriverPostgresql, "default",
 		))
@@ -305,7 +306,7 @@ func FirmwareRegistryTable(pool *sql.DB) table.Generator {
 // ── Admin Users ───────────────────────────────────────────────────────────────
 
 func AdminUsersTable(pool *sql.DB) table.Generator {
-	return func(ctx *table.Context) table.Table {
+	return func(ctx *context.Context) table.Table {
 		t := table.NewDefaultTable(table.DefaultConfigWithDriverAndConnection(
 			db.DriverPostgresql, "default",
 		))
@@ -324,7 +325,7 @@ func AdminUsersTable(pool *sql.DB) table.Generator {
 // ── Audit Log ─────────────────────────────────────────────────────────────────
 
 func AuditLogTable(pool *sql.DB) table.Generator {
-	return func(ctx *table.Context) table.Table {
+	return func(ctx *context.Context) table.Table {
 		t := table.NewDefaultTable(table.DefaultConfigWithDriverAndConnection(
 			db.DriverPostgresql, "default",
 		))
@@ -337,11 +338,9 @@ func AuditLogTable(pool *sql.DB) table.Generator {
 		info.AddField("IP Address", "ip_address", db.Varchar)
 		info.AddField("Timestamp", "created_at", db.Timestamptz).FieldSortable()
 		info.SetTable("audit_log").SetTitle("Audit Log").SetDescription("All mutations performed through GoAdmin")
-		info.SetDeleteEnabled(false)
-		info.SetNewEnabled(false)
-		info.SetEditEnabled(false)
-		info.AddFilterButton()
-		info.AddExportButton()
+		info.HideDeleteButton()
+		info.HideNewButton()
+		info.HideEditButton()
 		return t
 	}
 }
@@ -349,7 +348,7 @@ func AuditLogTable(pool *sql.DB) table.Generator {
 // ── System Configuration ─────────────────────────────────────────────────────
 
 func SystemConfigTable(pool *sql.DB) table.Generator {
-	return func(ctx *table.Context) table.Table {
+	return func(ctx *context.Context) table.Table {
 		t := table.NewDefaultTable(table.DefaultConfigWithDriverAndConnection(
 			db.DriverPostgresql, "default",
 		))

@@ -1,0 +1,4 @@
+DROP TABLE IF EXISTS trip_events;
+DROP TABLE IF EXISTS trips;
+DROP TABLE IF EXISTS routes;
+DROP TYPE IF EXISTS trip_status;

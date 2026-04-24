@@ -38,3 +38,8 @@ api-service/internal/docs/
 # Test coverage
 coverage/
 *.coverprofile
+
+# Node modules (all nested folders)
+**/node_modules/
+frontend/admin-panel/node_modules/
+frontend/tenant-dashboard/node_modules/

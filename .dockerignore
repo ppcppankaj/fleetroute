@@ -1,0 +1,36 @@
+# Frontend apps (not needed for Go service builds)
+frontend/tenant-dashboard/node_modules
+frontend/admin-panel/node_modules
+frontend/tenant-dashboard/.next
+frontend/admin-panel/.next
+frontend/tenant-dashboard/out
+frontend/admin-panel/out
+
+# Old frontend dirs (if any)
+frontend/node_modules
+admin-panel/node_modules
+
+# Git history
+.git
+
+# IDE / OS
+.vscode
+.idea
+.DS_Store
+Thumbs.db
+*.swp
+
+# Secrets (mounted via docker secrets, never baked in)
+secrets/
+
+# Local env files
+.env
+.env.local
+
+# Test artifacts
+coverage/
+*.test
+
+# Temp files
+tmp/
+temp/

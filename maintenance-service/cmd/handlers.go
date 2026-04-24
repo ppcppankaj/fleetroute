@@ -262,7 +262,7 @@ func (h *Handler) ListDocuments(c *gin.Context) {
 	rows, err := h.pool.Query(c.Request.Context(), `
 		SELECT vd.id, vd.vehicle_id, v.registration, vd.doc_type, vd.doc_number,
 		       vd.issued_at, vd.expires_at, vd.file_url, vd.issuer,
-		       EXTRACT(DAY FROM vd.expires_at - CURRENT_DATE)::int AS days_until_expiry,
+		       (vd.expires_at - CURRENT_DATE)::int AS days_until_expiry,
 		       CASE
 		         WHEN vd.expires_at < CURRENT_DATE THEN 'expired'
 		         WHEN vd.expires_at < CURRENT_DATE + INTERVAL '30 days' THEN 'expiring_soon'

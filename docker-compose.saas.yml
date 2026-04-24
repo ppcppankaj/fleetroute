@@ -1,0 +1,122 @@
+version: "3.9"
+
+services:
+  gateway:
+    build: ./gateway
+    ports: ["3000:3000"]
+    environment:
+      PORT: "3000"
+      JWT_PUBLIC_KEY_PATH: /keys/public.pem
+      KAFKA_BROKERS: kafka:9092
+      REDIS_ADDR: redis:6379
+      CORS_ALLOWED_ORIGINS: http://localhost:3001,http://localhost:3002
+    volumes:
+      - ./secrets:/keys:ro
+    depends_on: [kafka, redis, m11-users-access]
+
+  m01-live-tracking:
+    build: ./services/m01-live-tracking
+    ports: ["4001:4001"]
+    environment: { PORT: "4001" }
+  m02-routes-trips:
+    build: ./services/m02-routes-trips
+    ports: ["4002:4002"]
+    environment: { PORT: "4002" }
+  m03-geofencing:
+    build: ./services/m03-geofencing
+    ports: ["4003:4003"]
+    environment: { PORT: "4003" }
+  m04-alerts:
+    build: ./services/m04-alerts
+    ports: ["4004:4004"]
+    environment: { PORT: "4004" }
+  m05-reports:
+    build: ./services/m05-reports
+    ports: ["4005:4005"]
+    environment: { PORT: "4005" }
+  m06-vehicles:
+    build: ./services/m06-vehicles
+    ports: ["4006:4006"]
+    environment: { PORT: "4006" }
+  m07-drivers:
+    build: ./services/m07-drivers
+    ports: ["4007:4007"]
+    environment: { PORT: "4007" }
+  m08-maintenance:
+    build: ./services/m08-maintenance
+    ports: ["4008:4008"]
+    environment: { PORT: "4008" }
+  m09-fuel:
+    build: ./services/m09-fuel
+    ports: ["4009:4009"]
+    environment: { PORT: "4009" }
+  m10-multi-tenant:
+    build: ./services/m10-multi-tenant
+    ports: ["4010:4010"]
+    environment: { PORT: "4010" }
+  m11-users-access:
+    build: ./services/m11-users-access
+    ports: ["4011:4011"]
+    environment:
+      PORT: "4011"
+      DATABASE_URL: postgres://fleet:pass@postgres-m11:5432/fleet_users_db?sslmode=disable
+      JWT_PRIVATE_KEY_PATH: /keys/jwt_private.pem
+      JWT_PUBLIC_KEY_PATH: /keys/jwt_public.pem
+    volumes:
+      - ./secrets:/keys:ro
+    depends_on: [postgres-m11, kafka]
+  m12-devices:
+    build: ./services/m12-devices
+    ports: ["4012:4012"]
+    environment: { PORT: "4012" }
+  m13-security:
+    build: ./services/m13-security
+    ports: ["4013:4013"]
+    environment: { PORT: "4013" }
+  m14-billing:
+    build: ./services/m14-billing
+    ports: ["4014:4014"]
+    environment: { PORT: "4014" }
+  m15-admin-panel:
+    build: ./services/m15-admin-panel
+    ports: ["4015:4015"]
+    environment: { PORT: "4015" }
+  m16-activity-log:
+    build: ./services/m16-activity-log
+    ports: ["4016:4016"]
+    environment: { PORT: "4016" }
+  m17-roadmap:
+    build: ./services/m17-roadmap
+    ports: ["4017:4017"]
+    environment: { PORT: "4017" }
+
+  kafka:
+    image: confluentinc/cp-kafka:7.5.0
+    depends_on: [zookeeper]
+    ports: ["9092:9092"]
+    environment:
+      KAFKA_BROKER_ID: 1
+      KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
+      KAFKA_LISTENERS: PLAINTEXT://0.0.0.0:9092
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: "true"
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+
+  zookeeper:
+    image: confluentinc/cp-zookeeper:7.5.0
+    ports: ["2181:2181"]
+    environment:
+      ZOOKEEPER_CLIENT_PORT: 2181
+      ZOOKEEPER_TICK_TIME: 2000
+
+  redis:
+    image: redis:7-alpine
+    ports: ["6379:6379"]
+
+  postgres-m11:
+    image: postgres:15
+    environment:
+      POSTGRES_DB: fleet_users_db
+      POSTGRES_USER: fleet
+      POSTGRES_PASSWORD: pass
+    ports: ["54321:5432"]
