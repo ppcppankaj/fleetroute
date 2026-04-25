@@ -10,6 +10,7 @@ import (
 	"go.uber.org/zap"
 
 	"gpsgo/pkg/protocol"
+	natsclient "gpsgo/pkg/nats"
 )
 
 // TCPServer listens on a single TCP port and serves connections using the given protocol handler.
@@ -17,9 +18,10 @@ import (
 type TCPServer struct {
 	port     int
 	handler  protocol.Handler
-	registry *ConnRegistry
-	onRecord func(deviceID string, records []protocol.ParsedRecord)
-	logger   *zap.Logger
+	registry   *ConnRegistry
+	onRecord   func(deviceID string, records []protocol.ParsedRecord)
+	logger     *zap.Logger
+	natsClient *natsclient.Client
 }
 
 // NewTCPServer creates a TCPServer for the given protocol+port+record callback.
@@ -29,13 +31,15 @@ func NewTCPServer(
 	registry *ConnRegistry,
 	onRecord func(deviceID string, records []protocol.ParsedRecord),
 	logger *zap.Logger,
+	natsClient *natsclient.Client,
 ) *TCPServer {
 	return &TCPServer{
-		port:     port,
-		handler:  handler,
-		registry: registry,
-		onRecord: onRecord,
-		logger:   logger,
+		port:       port,
+		handler:    handler,
+		registry:   registry,
+		onRecord:   onRecord,
+		logger:     logger,
+		natsClient: natsClient,
 	}
 }
 
@@ -147,7 +151,9 @@ func (s *TCPServer) handleConn(ctx context.Context, conn net.Conn) {
 					zap.Error(err),
 					zap.Int("raw_bytes", len(raw)),
 				)
-				// TODO: publish raw to dead-letter queue
+				if err := s.natsClient.Publish(ctx, natsclient.SubjectDeadLetter, deviceID+"-dlq", raw); err != nil {
+					s.logger.Warn("dead letter publish failed", zap.Error(err))
+				}
 			}
 			return
 		}

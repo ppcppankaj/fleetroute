@@ -14,10 +14,9 @@
 #
 # ⚠️  SECURITY — READ BEFORE STAGING/PRODUCTION DEPLOYMENT:
 #
-#   1. sslmode=require on ALL DATABASE_URL values below.
-#      This is intentional for local dev (no TLS cert chain available in Docker).
-#      Before staging/production: change to sslmode=require (or sslmode=verify-full
-#      with a CA cert mounted via Docker secret). All managed cloud PG providers
+#   1. sslmode=require is configured on ALL DATABASE_URL values below.
+#      Before staging/production: consider changing to sslmode=verify-full
+#      with a CA cert mounted via Docker secret. All managed cloud PG providers
 #      (RDS, Cloud SQL, Supabase) enforce TLS by default and will reject disable.
 #
 #   2. secrets/ directory is gitignored. Mount JWT keys via Docker secrets or

@@ -31,7 +31,11 @@ func main() {
 	}
 	defer pool.Close()
 
-	nc, err := nats.Connect(getenv("NATS_URL", "nats://localhost:4222"))
+	natsURL := os.Getenv("NATS_URL")
+	if natsURL == "" {
+		log.Fatal("NATS_URL environment variable is required")
+	}
+	nc, err := nats.Connect(natsURL)
 	if err != nil {
 		log.Fatal("nats connect", zap.Error(err))
 	}

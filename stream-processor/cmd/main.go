@@ -31,7 +31,12 @@ func main() {
 	defer cancel()
 
 	// ── NATS ──────────────────────────────────────────────────────────────────
-	nc, err := natsclient.New(envStr("NATS_URL", "nats://localhost:4222"))
+	natsURL := os.Getenv("NATS_URL")
+	if natsURL == "" {
+		logger.Fatal("NATS_URL environment variable is required")
+	}
+
+	nc, err := natsclient.New(natsURL)
 	if err != nil {
 		logger.Fatal("NATS connect", zap.Error(err))
 	}
@@ -153,7 +158,7 @@ func processMessage(
 
 	// ── Bridge to Kafka (M2) ──────────────────────────────────────────────────
 	locEvent := &types.LocationUpdatedEvent{
-		VehicleID:      enriched.DeviceID, // using device ID as fallback if vehicle ID not available
+		VehicleID:      enriched.VehicleID, // using vehicle ID from H2 fix
 		TenantID:       enriched.TenantID,
 		Lat:            enriched.Lat,
 		Lng:            enriched.Lng,
@@ -167,6 +172,38 @@ func processMessage(
 	locEventData, _ := json.Marshal(locEvent)
 	if err := kafkaProducer.Publish(ctx, types.TopicLocationUpdated, locEvent.VehicleID, locEventData); err != nil {
 		logger.Warn("kafka bridge publish", zap.Error(err))
+	}
+	// ── Publish generated domain events to Kafka (H1) ─────────────────────────
+	for _, evt := range enriched.GeneratedEvents {
+		data, err := json.Marshal(evt)
+		if err != nil {
+			logger.Warn("failed to marshal generated event", zap.Error(err))
+			continue
+		}
+		
+		var topic string
+		switch evt.(type) {
+		case *types.TripStartedEvent:
+			topic = types.TopicTripStarted
+		case *types.TripCompletedEvent:
+			topic = types.TopicTripCompleted
+		case *types.GeofenceBreachEvent:
+			topic = types.TopicGeofenceBreach
+		case *types.AlertTriggeredEvent:
+			topic = types.TopicAlertTriggered
+		case *types.FuelTheftSuspectedEvent:
+			topic = types.TopicFuelTheftSuspected
+		case *types.MaintenanceDueEvent:
+			topic = types.TopicMaintenanceDue
+		case *types.DeviceOfflineEvent:
+			topic = types.TopicDeviceOffline
+		default:
+			continue
+		}
+		
+		if err := kafkaProducer.Publish(ctx, topic, enriched.TenantID, data); err != nil {
+			logger.Warn("kafka bridge event publish failed", zap.String("topic", topic), zap.Error(err))
+		}
 	}
 
 	msg.Ack() //nolint:errcheck

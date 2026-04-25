@@ -30,9 +30,7 @@ func NewITSClient(endpoint, apiKey string) *ITSClient {
 // Reference: https://its.example.gov.in/api/emergency (replace with actual endpoint)
 func (c *ITSClient) ForwardEmergency(rawPacket string) error {
 	if c.endpoint == "" || c.endpoint == "https://its.example.gov.in/api/emergency" {
-		// Stub: log the emergency but don't forward
-		fmt.Printf("[AIS140] STUB: emergency alert would be forwarded: %s\n", rawPacket)
-		return nil
+		return fmt.Errorf("ITS portal not configured: set AIS140_ITS_ENDPOINT and AIS140_ITS_API_KEY")
 	}
 
 	body := strings.NewReader(rawPacket)

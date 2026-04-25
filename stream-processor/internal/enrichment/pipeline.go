@@ -15,6 +15,7 @@ import (
 // EnrichedRecord is the post-enrichment record with named telemetry fields.
 type EnrichedRecord struct {
 	DeviceID   string    `json:"device_id"`
+	VehicleID  string    `json:"vehicle_id"`
 	TenantID   string    `json:"tenant_id"`
 	MessageID  string    `json:"message_id"`
 	Timestamp  time.Time `json:"timestamp"`
@@ -45,6 +46,9 @@ type EnrichedRecord struct {
 
 	IOData   map[int]int64 `json:"io_data"`
 	RawCodec uint8         `json:"raw_codec"`
+
+	// GeneratedEvents holds domain events produced by enrichers (e.g., TripStartedEvent, AlertTriggeredEvent)
+	GeneratedEvents []any `json:"-"`
 }
 
 // Enricher is a single step in the enrichment pipeline.
@@ -92,9 +96,11 @@ func (p *Pipeline) Process(ctx context.Context, raw protocol.ParsedRecord) *Enri
 		p.logger.Warn("dropping record: device not registered", zap.String("device_id", raw.DeviceID))
 		return nil
 	}
+	vehicleID := p.registry.LookupVehicleID(ctx, raw.DeviceID)
 
 	rec := &EnrichedRecord{
 		DeviceID:   raw.DeviceID,
+		VehicleID:  vehicleID,
 		TenantID:   tenantID,
 		Timestamp:  time.UnixMilli(raw.Timestamp).UTC(),
 		ReceivedAt: time.Now().UTC(),

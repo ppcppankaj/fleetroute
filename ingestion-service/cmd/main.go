@@ -88,7 +88,7 @@ func main() {
 
 	var wg sync.WaitGroup
 	for _, ph := range handlers {
-		srv := server.NewTCPServer(ph.port, ph.handler, registry, onRecord, logger)
+		srv := server.NewTCPServer(ph.port, ph.handler, registry, onRecord, logger, nc)
 		wg.Add(1)
 		go func(s *server.TCPServer, name string) {
 			defer wg.Done()

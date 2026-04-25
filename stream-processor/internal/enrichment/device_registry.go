@@ -76,3 +76,13 @@ func (r *DeviceRegistry) Lookup(ctx context.Context, deviceID string) string {
 func (r *DeviceRegistry) Invalidate(ctx context.Context, deviceID string) {
 	r.rdb.Del(ctx, deviceTenantCachePrefix+deviceID) //nolint:errcheck
 }
+
+// LookupVehicleID returns the vehicle_id for the given device_id.
+func (r *DeviceRegistry) LookupVehicleID(ctx context.Context, deviceID string) string {
+	var vehicleID string
+	r.pool.QueryRow(ctx,
+		`SELECT COALESCE(vehicle_id::text, '') FROM devices WHERE id=$1 OR imei=$1 LIMIT 1`,
+		deviceID,
+	).Scan(&vehicleID)
+	return vehicleID
+}

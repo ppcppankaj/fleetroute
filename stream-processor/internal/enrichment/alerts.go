@@ -9,6 +9,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/redis/go-redis/v9"
 	"go.uber.org/zap"
+	"gpsgo/shared/types"
 )
 
 // ─── Rule Types ────────────────────────────────────────────────────────────────
@@ -204,13 +205,15 @@ func (e *RulesEngine) insertAlert(ctx context.Context, rec *EnrichedRecord,
 		}
 	}
 
-	_, err := e.pool.Exec(ctx, `
+	var alertID string
+	err := e.pool.QueryRow(ctx, `
 		INSERT INTO alerts (tenant_id, device_id, alert_type, severity, message,
 		                    lat, lng, speed, triggered_at, extra)
 		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10::jsonb)
-		ON CONFLICT DO NOTHING`,
+		RETURNING id`,
 		rec.TenantID, rec.DeviceID, alertType, severity, message,
-		rec.Lat, rec.Lng, rec.Speed, rec.Timestamp, extraJSON)
+		rec.Lat, rec.Lng, rec.Speed, rec.Timestamp, extraJSON).Scan(&alertID)
+
 	if err != nil {
 		e.logger.Error("insert alert", zap.String("type", alertType), zap.Error(err))
 	} else {
@@ -218,6 +221,16 @@ func (e *RulesEngine) insertAlert(ctx context.Context, rec *EnrichedRecord,
 			zap.String("type", alertType),
 			zap.String("severity", severity),
 			zap.String("device", rec.DeviceID))
+			
+		rec.GeneratedEvents = append(rec.GeneratedEvents, &types.AlertTriggeredEvent{
+			AlertID:   alertID,
+			TenantID:  rec.TenantID,
+			VehicleID: rec.VehicleID, // from H2 fix
+			Type:      alertType,
+			Severity:  severity,
+			Message:   message,
+			CreatedAt: rec.Timestamp,
+		})
 	}
 }
 

@@ -42,7 +42,7 @@ func Load() *Config {
 		PortTeltonikaTC:  envInt("PORT_TELTONIKA_TCP", 5027),
 		PortTeltonikaUDP: envInt("PORT_TELTONIKA_UDP", 5028),
 
-		NATSUrl:  envStr("NATS_URL", "nats://localhost:4222"),
+		NATSUrl:  envStrRequired("NATS_URL"),
 		LogLevel: envStr("LOG_LEVEL", "info"),
 		OTELEndpoint: envStr("OTEL_EXPORTER_OTLP_ENDPOINT", ""),
 
@@ -59,6 +59,14 @@ func envStr(key, def string) string {
 		return v
 	}
 	return def
+}
+
+func envStrRequired(key string) string {
+	v := os.Getenv(key)
+	if v == "" {
+		panic("environment variable required: " + key)
+	}
+	return v
 }
 
 func envInt(key string, def int) int {

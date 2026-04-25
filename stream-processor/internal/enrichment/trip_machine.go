@@ -7,6 +7,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/redis/go-redis/v9"
 	"go.uber.org/zap"
+	"gpsgo/shared/types"
 )
 
 const (
@@ -51,6 +52,15 @@ func (m *TripMachine) Process(ctx context.Context, rec *EnrichedRecord) {
 		m.rdb.Set(ctx, tripIdKey, newTripID, 0)
 		m.logger.Info("started trip", zap.String("trip_id", newTripID))
 
+		rec.GeneratedEvents = append(rec.GeneratedEvents, &types.TripStartedEvent{
+			TripID:    newTripID,
+			VehicleID: rec.VehicleID, // from H2 fix
+			TenantID:  rec.TenantID,
+			StartLat:  rec.Lat,
+			StartLng:  rec.Lng,
+			StartTime: rec.Timestamp,
+		})
+
 	} else if state == StateActive && rec.Speed < 2 {
 		tripID, _ := m.rdb.Get(ctx, tripIdKey).Result()
 		if tripID != "" {
@@ -64,6 +74,14 @@ func (m *TripMachine) Process(ctx context.Context, rec *EnrichedRecord) {
 				m.logger.Error("failed to end trip", zap.Error(err))
 			} else {
 				m.logger.Info("ended trip", zap.String("trip_id", tripID))
+				rec.GeneratedEvents = append(rec.GeneratedEvents, &types.TripCompletedEvent{
+					TripID:    tripID,
+					VehicleID: rec.VehicleID,
+					TenantID:  rec.TenantID,
+					EndTime:   rec.Timestamp,
+					EndLat:    rec.Lat,
+					EndLng:    rec.Lng,
+				})
 			}
 		}
 		
