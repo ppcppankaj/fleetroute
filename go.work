@@ -5,6 +5,7 @@ use (
 	./gateway
 	./pkg
 	./protocols
+	./scripts
 	./services/m01-live-tracking
 	./services/m02-routes-trips
 	./services/m03-geofencing
