@@ -1,6 +1,6 @@
 module gpsgo/gateway
 
-go 1.22
+go 1.23.0
 
 require (
 	github.com/go-chi/chi/v5 v5.1.0
@@ -18,7 +18,7 @@ require (
 	github.com/klauspost/compress v1.17.9 // indirect
 	github.com/pierrec/lz4/v4 v4.1.15 // indirect
 	github.com/stretchr/testify v1.9.0 // indirect
-	golang.org/x/net v0.26.0 // indirect
+	golang.org/x/text v0.23.0 // indirect
 )
 
 replace gpsgo/shared => ../shared

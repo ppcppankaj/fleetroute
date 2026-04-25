@@ -88,6 +88,10 @@ func NewPipeline(pool *pgxpool.Pool, rdb *redis.Client, logger *zap.Logger) *Pip
 func (p *Pipeline) Process(ctx context.Context, raw protocol.ParsedRecord) *EnrichedRecord {
 	// Look up the real tenant_id for this device from cache / DB.
 	tenantID := p.registry.Lookup(ctx, raw.DeviceID)
+	if tenantID == "" {
+		p.logger.Warn("dropping record: device not registered", zap.String("device_id", raw.DeviceID))
+		return nil
+	}
 
 	rec := &EnrichedRecord{
 		DeviceID:   raw.DeviceID,

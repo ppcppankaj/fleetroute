@@ -10,7 +10,7 @@ import (
 )
 
 func main() {
-	dsn := "postgres://gpsgo:gpsgo@localhost:5432/gpsgo?sslmode=disable"
+	dsn := "postgres://gpsgo:gpsgo@localhost:5432/gpsgo?sslmode=require"
 	ctx := context.Background()
 
 	conn, err := pgx.Connect(ctx, dsn)

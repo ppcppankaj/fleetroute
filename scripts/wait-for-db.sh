@@ -15,5 +15,5 @@ sleep 5
 echo "🚀 Running migrations..."
 
 exec migrate -path=/migrations \
-  -database=postgres://gpsgo:gpsgo@timescaledb:5432/gpsgo?sslmode=disable \
+  -database=postgres://gpsgo:gpsgo@timescaledb:5432/gpsgo?sslmode=require \
   up

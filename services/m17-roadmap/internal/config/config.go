@@ -10,7 +10,7 @@ type Config struct {
 func Load() *Config {
 	return &Config{
 		Port:        env("PORT", "4017"),
-		DatabaseURL: env("DATABASE_URL", "postgres://fleet:fleetpass@localhost:5417/fleet_roadmap_db?sslmode=disable"),
+		DatabaseURL: env("DATABASE_URL", "postgres://fleet:fleetpass@localhost:5417/fleet_roadmap_db?sslmode=require"),
 	}
 }
 

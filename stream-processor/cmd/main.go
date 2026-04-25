@@ -17,6 +17,8 @@ import (
 	pkgdb "gpsgo/pkg/db"
 	natsclient "gpsgo/pkg/nats"
 	"gpsgo/pkg/protocol"
+	"gpsgo/shared/kafka"
+	"gpsgo/shared/types"
 	"gpsgo/stream-processor/internal/enrichment"
 	"gpsgo/stream-processor/internal/writer"
 )
@@ -57,6 +59,11 @@ func main() {
 	redisWriter := writer.NewRedisWriter(rdb, logger)
 	pipeline := enrichment.NewPipeline(pool, rdb, logger)
 
+	// ── Kafka Producer (M2 Bridge) ────────────────────────────────────────────
+	kafkaBrokers := []string{envStr("KAFKA_BROKERS", "localhost:29092")}
+	kafkaProducer := kafka.NewProducer(kafkaBrokers)
+	defer kafkaProducer.Close()
+
 	// ── NATS JetStream Consumer ───────────────────────────────────────────────
 	js := nc.JetStream()
 	consumer, err := js.CreateOrUpdateConsumer(ctx, natsclient.StreamAVL, jetstream.ConsumerConfig{
@@ -88,7 +95,7 @@ func main() {
 		if err != nil {
 			break
 		}
-		processMessage(ctx, msg, pipeline, tsWriter, redisWriter, nc, logger)
+		processMessage(ctx, msg, pipeline, tsWriter, redisWriter, nc, kafkaProducer, logger)
 	}
 
 	logger.Info("stream processor stopped")
@@ -101,6 +108,7 @@ func processMessage(
 	tsWriter *writer.TimescaleWriter,
 	redisWriter *writer.RedisWriter,
 	nc *natsclient.Client,
+	kafkaProducer *kafka.Producer,
 	logger *zap.Logger,
 ) {
 	var raw protocol.ParsedRecord
@@ -112,6 +120,10 @@ func processMessage(
 
 	// ── Enrichment Pipeline ────────────────────────────────────────────────────
 	enriched := pipeline.Process(ctx, raw)
+	if enriched == nil {
+		msg.Ack() //nolint:errcheck
+		return
+	}
 
 	// ── Write to TimescaleDB ──────────────────────────────────────────────────
 	if err := tsWriter.Write(ctx, enriched); err != nil {
@@ -137,6 +149,24 @@ func processMessage(
 	// ── Publish to Redis Pub/Sub for WebSocket fan-out ────────────────────────
 	if err := redisWriter.PublishLive(ctx, enriched); err != nil {
 		logger.Warn("redis pubsub publish", zap.Error(err))
+	}
+
+	// ── Bridge to Kafka (M2) ──────────────────────────────────────────────────
+	locEvent := &types.LocationUpdatedEvent{
+		VehicleID:      enriched.DeviceID, // using device ID as fallback if vehicle ID not available
+		TenantID:       enriched.TenantID,
+		Lat:            enriched.Lat,
+		Lng:            enriched.Lng,
+		Speed:          float64(enriched.Speed),
+		Heading:        float64(enriched.Heading),
+		Altitude:       float64(enriched.Altitude),
+		Ignition:       enriched.Ignition,
+		SignalStrength: enriched.GSMSignal,
+		Timestamp:      enriched.Timestamp,
+	}
+	locEventData, _ := json.Marshal(locEvent)
+	if err := kafkaProducer.Publish(ctx, types.TopicLocationUpdated, locEvent.VehicleID, locEventData); err != nil {
+		logger.Warn("kafka bridge publish", zap.Error(err))
 	}
 
 	msg.Ack() //nolint:errcheck

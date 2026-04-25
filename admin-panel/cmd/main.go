@@ -26,7 +26,7 @@ import (
 
 func main() {
 	// ── Database ─────────────────────────────────────────────────────────────
-	dsn := getenv("DATABASE_URL", "postgres://gpsgo:gpsgo@localhost:5432/gpsgo?sslmode=disable")
+	dsn := getenv("DATABASE_URL", "postgres://gpsgo:gpsgo@localhost:5432/gpsgo?sslmode=require")
 	sqlDB, err := sql.Open("postgres", dsn)
 	if err != nil {
 		log.Fatalf("database open: %v", err)

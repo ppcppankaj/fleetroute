@@ -14,7 +14,7 @@
 #
 # ⚠️  SECURITY — READ BEFORE STAGING/PRODUCTION DEPLOYMENT:
 #
-#   1. sslmode=disable on ALL DATABASE_URL values below.
+#   1. sslmode=require on ALL DATABASE_URL values below.
 #      This is intentional for local dev (no TLS cert chain available in Docker).
 #      Before staging/production: change to sslmode=require (or sslmode=verify-full
 #      with a CA cert mounted via Docker secret). All managed cloud PG providers
@@ -465,7 +465,7 @@ services:
       - "4001:4001"
     environment:
       PORT: "4001"
-      DATABASE_URL: postgres://fleet:${POSTGRES_PASSWORD_M01:?POSTGRES_PASSWORD_M01 is required}@postgres-m01:5432/fleet_tracking_db?sslmode=disable
+      DATABASE_URL: postgres://fleet:${POSTGRES_PASSWORD_M01:?POSTGRES_PASSWORD_M01 is required}@postgres-m01:5432/fleet_tracking_db?sslmode=require
       KAFKA_BROKERS: kafka:9092
       REDIS_ADDR: redis:6379
       MQTT_BROKER: tcp://mosquitto:1883
@@ -494,7 +494,7 @@ services:
       - "4002:4002"
     environment:
       PORT: "4002"
-      DATABASE_URL: postgres://fleet:${POSTGRES_PASSWORD_M02:?POSTGRES_PASSWORD_M02 is required}@postgres-m02:5432/fleet_routes_db?sslmode=disable
+      DATABASE_URL: postgres://fleet:${POSTGRES_PASSWORD_M02:?POSTGRES_PASSWORD_M02 is required}@postgres-m02:5432/fleet_routes_db?sslmode=require
       KAFKA_BROKERS: kafka:9092
       REDIS_ADDR: redis:6379
     networks: [fleet]
@@ -520,7 +520,7 @@ services:
       - "4003:4003"
     environment:
       PORT: "4003"
-      DATABASE_URL: postgres://fleet:${POSTGRES_PASSWORD_M03:?POSTGRES_PASSWORD_M03 is required}@postgres-m03:5432/fleet_geofencing_db?sslmode=disable
+      DATABASE_URL: postgres://fleet:${POSTGRES_PASSWORD_M03:?POSTGRES_PASSWORD_M03 is required}@postgres-m03:5432/fleet_geofencing_db?sslmode=require
       KAFKA_BROKERS: kafka:9092
       REDIS_ADDR: redis:6379
     networks: [fleet]
@@ -546,7 +546,7 @@ services:
       - "4004:4004"
     environment:
       PORT: "4004"
-      DATABASE_URL: postgres://fleet:${POSTGRES_PASSWORD_M04:?POSTGRES_PASSWORD_M04 is required}@postgres-m04:5432/fleet_alerts_db?sslmode=disable
+      DATABASE_URL: postgres://fleet:${POSTGRES_PASSWORD_M04:?POSTGRES_PASSWORD_M04 is required}@postgres-m04:5432/fleet_alerts_db?sslmode=require
       KAFKA_BROKERS: kafka:9092
       REDIS_ADDR: redis:6379
       SMTP_HOST: ""
@@ -579,7 +579,7 @@ services:
       - "4005:4005"
     environment:
       PORT: "4005"
-      DATABASE_URL: postgres://fleet:${POSTGRES_PASSWORD_M05:?POSTGRES_PASSWORD_M05 is required}@postgres-m05:5432/fleet_reports_db?sslmode=disable
+      DATABASE_URL: postgres://fleet:${POSTGRES_PASSWORD_M05:?POSTGRES_PASSWORD_M05 is required}@postgres-m05:5432/fleet_reports_db?sslmode=require
       KAFKA_BROKERS: kafka:9092
       MINIO_ENDPOINT: minio:9000
       MINIO_ACCESS_KEY: ${MINIO_ROOT_USER:?MINIO_ROOT_USER is required}
@@ -608,7 +608,7 @@ services:
       - "4006:4006"
     environment:
       PORT: "4006"
-      DATABASE_URL: postgres://fleet:${POSTGRES_PASSWORD_M06:?POSTGRES_PASSWORD_M06 is required}@postgres-m06:5432/fleet_vehicles_db?sslmode=disable
+      DATABASE_URL: postgres://fleet:${POSTGRES_PASSWORD_M06:?POSTGRES_PASSWORD_M06 is required}@postgres-m06:5432/fleet_vehicles_db?sslmode=require
       KAFKA_BROKERS: kafka:9092
       REDIS_ADDR: redis:6379
       MINIO_ENDPOINT: minio:9000
@@ -638,7 +638,7 @@ services:
       - "4007:4007"
     environment:
       PORT: "4007"
-      DATABASE_URL: postgres://fleet:${POSTGRES_PASSWORD_M07:?POSTGRES_PASSWORD_M07 is required}@postgres-m07:5432/fleet_drivers_db?sslmode=disable
+      DATABASE_URL: postgres://fleet:${POSTGRES_PASSWORD_M07:?POSTGRES_PASSWORD_M07 is required}@postgres-m07:5432/fleet_drivers_db?sslmode=require
       KAFKA_BROKERS: kafka:9092
       REDIS_ADDR: redis:6379
     networks: [fleet]
@@ -664,7 +664,7 @@ services:
       - "4008:4008"
     environment:
       PORT: "4008"
-      DATABASE_URL: postgres://fleet:${POSTGRES_PASSWORD_M08:?POSTGRES_PASSWORD_M08 is required}@postgres-m08:5432/fleet_maintenance_db?sslmode=disable
+      DATABASE_URL: postgres://fleet:${POSTGRES_PASSWORD_M08:?POSTGRES_PASSWORD_M08 is required}@postgres-m08:5432/fleet_maintenance_db?sslmode=require
       KAFKA_BROKERS: kafka:9092
       REDIS_ADDR: redis:6379
     networks: [fleet]
@@ -690,7 +690,7 @@ services:
       - "4009:4009"
     environment:
       PORT: "4009"
-      DATABASE_URL: postgres://fleet:${POSTGRES_PASSWORD_M09:?POSTGRES_PASSWORD_M09 is required}@postgres-m09:5432/fleet_fuel_db?sslmode=disable
+      DATABASE_URL: postgres://fleet:${POSTGRES_PASSWORD_M09:?POSTGRES_PASSWORD_M09 is required}@postgres-m09:5432/fleet_fuel_db?sslmode=require
       KAFKA_BROKERS: kafka:9092
       REDIS_ADDR: redis:6379
     networks: [fleet]
@@ -716,7 +716,7 @@ services:
       - "4010:4010"
     environment:
       PORT: "4010"
-      DATABASE_URL: postgres://fleet:${POSTGRES_PASSWORD_M10:?POSTGRES_PASSWORD_M10 is required}@postgres-m10:5432/fleet_tenants_db?sslmode=disable
+      DATABASE_URL: postgres://fleet:${POSTGRES_PASSWORD_M10:?POSTGRES_PASSWORD_M10 is required}@postgres-m10:5432/fleet_tenants_db?sslmode=require
       KAFKA_BROKERS: kafka:9092
       REDIS_ADDR: redis:6379
     networks: [fleet]
@@ -742,7 +742,7 @@ services:
       - "4011:4011"
     environment:
       PORT: "4011"
-      DATABASE_URL: postgres://fleet:${POSTGRES_PASSWORD_M11:?POSTGRES_PASSWORD_M11 is required}@postgres-m11:5432/fleet_users_db?sslmode=disable
+      DATABASE_URL: postgres://fleet:${POSTGRES_PASSWORD_M11:?POSTGRES_PASSWORD_M11 is required}@postgres-m11:5432/fleet_users_db?sslmode=require
       JWT_PRIVATE_KEY_PATH: /run/secrets/jwt_private
       JWT_PUBLIC_KEY_PATH: /run/secrets/jwt_public
       KAFKA_BROKERS: kafka:9092
@@ -773,7 +773,7 @@ services:
       - "4012:4012"
     environment:
       PORT: "4012"
-      DATABASE_URL: postgres://fleet:${POSTGRES_PASSWORD_M12:?POSTGRES_PASSWORD_M12 is required}@postgres-m12:5432/fleet_devices_db?sslmode=disable
+      DATABASE_URL: postgres://fleet:${POSTGRES_PASSWORD_M12:?POSTGRES_PASSWORD_M12 is required}@postgres-m12:5432/fleet_devices_db?sslmode=require
       KAFKA_BROKERS: kafka:9092
       REDIS_ADDR: redis:6379
     networks: [fleet]
@@ -799,7 +799,7 @@ services:
       - "4013:4013"
     environment:
       PORT: "4013"
-      DATABASE_URL: postgres://fleet:${POSTGRES_PASSWORD_M13:?POSTGRES_PASSWORD_M13 is required}@postgres-m13:5432/fleet_security_db?sslmode=disable
+      DATABASE_URL: postgres://fleet:${POSTGRES_PASSWORD_M13:?POSTGRES_PASSWORD_M13 is required}@postgres-m13:5432/fleet_security_db?sslmode=require
       KAFKA_BROKERS: kafka:9092
       REDIS_ADDR: redis:6379
     networks: [fleet]
@@ -825,7 +825,7 @@ services:
       - "4014:4014"
     environment:
       PORT: "4014"
-      DATABASE_URL: postgres://fleet:${POSTGRES_PASSWORD_M14:?POSTGRES_PASSWORD_M14 is required}@postgres-m14:5432/fleet_billing_db?sslmode=disable
+      DATABASE_URL: postgres://fleet:${POSTGRES_PASSWORD_M14:?POSTGRES_PASSWORD_M14 is required}@postgres-m14:5432/fleet_billing_db?sslmode=require
       KAFKA_BROKERS: kafka:9092
       STRIPE_SECRET_KEY: ${STRIPE_SECRET_KEY:?STRIPE_SECRET_KEY is required}
       STRIPE_WEBHOOK_SECRET: ${STRIPE_WEBHOOK_SECRET:?STRIPE_WEBHOOK_SECRET is required}
@@ -852,7 +852,7 @@ services:
       - "4015:4015"
     environment:
       PORT: "4015"
-      DATABASE_URL: postgres://fleet:${POSTGRES_PASSWORD_M15:?POSTGRES_PASSWORD_M15 is required}@postgres-m15:5432/fleet_admin_db?sslmode=disable
+      DATABASE_URL: postgres://fleet:${POSTGRES_PASSWORD_M15:?POSTGRES_PASSWORD_M15 is required}@postgres-m15:5432/fleet_admin_db?sslmode=require
       KAFKA_BROKERS: kafka:9092
       ADMIN_JWT_SECRET: ${ADMIN_JWT_SECRET:?ADMIN_JWT_SECRET is required}
     networks: [fleet]
@@ -878,7 +878,7 @@ services:
       - "4016:4016"
     environment:
       PORT: "4016"
-      DATABASE_URL: postgres://fleet:${POSTGRES_PASSWORD_M16:?POSTGRES_PASSWORD_M16 is required}@postgres-m16:5432/fleet_activity_db?sslmode=disable
+      DATABASE_URL: postgres://fleet:${POSTGRES_PASSWORD_M16:?POSTGRES_PASSWORD_M16 is required}@postgres-m16:5432/fleet_activity_db?sslmode=require
       KAFKA_BROKERS: kafka:9092
       REDIS_ADDR: redis:6379
     networks: [fleet]
@@ -904,7 +904,7 @@ services:
       - "4017:4017"
     environment:
       PORT: "4017"
-      DATABASE_URL: postgres://fleet:${POSTGRES_PASSWORD_M17:?POSTGRES_PASSWORD_M17 is required}@postgres-m17:5432/fleet_roadmap_db?sslmode=disable
+      DATABASE_URL: postgres://fleet:${POSTGRES_PASSWORD_M17:?POSTGRES_PASSWORD_M17 is required}@postgres-m17:5432/fleet_roadmap_db?sslmode=require
       KAFKA_BROKERS: kafka:9092
     networks: [fleet]
     depends_on:

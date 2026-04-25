@@ -25,9 +25,11 @@ jobs:
 
       - name: Vet
         run: |
-          for mod in pkg protocols ingestion-service stream-processor api-service websocket-service; do
-            echo ">>> $mod"
-            cd $mod && go vet ./... && cd ..
+          for mod in pkg protocols ingestion-service stream-processor api-service websocket-service services/shared services/m*; do
+            if [ -d "$mod" ]; then
+              echo ">>> $mod"
+              (cd "$mod" && go vet ./...)
+            fi
           done
 
       - name: Test — pkg
@@ -47,6 +49,15 @@ jobs:
 
       - name: Build — websocket-service
         run: cd websocket-service && go build ./cmd/...
+
+      - name: Build — domain services
+        run: |
+          for svc in services/m*; do
+            if [ -d "$svc" ]; then
+              echo ">>> Building $svc"
+              (cd "$svc" && go build ./cmd/...)
+            fi
+          done
 
   # ── Frontend Build ─────────────────────────────────────────────────────────
   build-frontend:

@@ -14,7 +14,7 @@ func Load() Config {
 	publicPath := env("JWT_PUBLIC_KEY_PATH", "secrets\\jwt_public.pem")
 	return Config{
 		Port:             env("PORT", "4011"),
-		DatabaseURL:      env("DATABASE_URL", "postgres://fleet:pass@localhost:5432/fleet_users_db?sslmode=disable"),
+		DatabaseURL:      env("DATABASE_URL", "postgres://fleet:pass@localhost:5432/fleet_users_db?sslmode=require"),
 		JWTPrivateKeyPEM: mustRead(privatePath),
 		JWTPublicKeyPEM:  mustRead(publicPath),
 	}

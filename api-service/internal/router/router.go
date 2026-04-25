@@ -171,16 +171,16 @@ func New(
 		rules := protected.Group("/rules")
 		rules.GET("", ruleHandler.ListFromDB)
 		rules.POST("",
-			pkgauth.RequirePermission(pkgauth.PermWriteDevices),
+			pkgauth.RequirePermission(pkgauth.PermWriteRules),
 			ruleHandler.CreateFromDB,
 		)
 		rules.GET("/:id", ruleHandler.GetFromDB)
 		rules.PUT("/:id",
-			pkgauth.RequirePermission(pkgauth.PermWriteDevices),
+			pkgauth.RequirePermission(pkgauth.PermWriteRules),
 			ruleHandler.UpdateFromDB,
 		)
 		rules.DELETE("/:id",
-			pkgauth.RequirePermission(pkgauth.PermWriteDevices),
+			pkgauth.RequirePermission(pkgauth.PermWriteRules),
 			ruleHandler.DeleteFromDB,
 		)
 		rules.GET("/templates", ruleHandler.Templates)

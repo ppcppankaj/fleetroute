@@ -49,6 +49,14 @@ func (h *VehicleHandler) List(c *gin.Context) {
 		}
 		vs = append(vs, m)
 	}
+	if err := rows.Err(); err != nil {
+		h.logger.Error("rows error", zap.Error(err))
+		respondError(c, http.StatusInternalServerError, "database error")
+		return
+	}
+	if vs == nil {
+		vs = []map[string]any{}
+	}
 	respondOK(c, vs)
 }
 
@@ -107,6 +115,33 @@ func (h *VehicleHandler) Create(c *gin.Context) {
 }
 
 func (h *VehicleHandler) Update(c *gin.Context) {
+	tenantID := pkgauth.TenantID(c)
+	id := c.Param("id")
+	var body struct {
+		Registration string  `json:"registration" binding:"required"`
+		Make         string  `json:"make"`
+		Model        string  `json:"model"`
+		Year         int     `json:"year"`
+		DeviceID     *string `json:"device_id"`
+	}
+	if err := c.ShouldBindJSON(&body); err != nil {
+		respondError(c, http.StatusBadRequest, err.Error())
+		return
+	}
+	tag, err := h.pool.Exec(c.Request.Context(),
+		`UPDATE vehicles SET registration=$1, make=$2, model=$3, year=$4, device_id=$5
+		 WHERE id=$6 AND tenant_id=$7 AND deleted_at IS NULL`,
+		body.Registration, body.Make, body.Model, body.Year, body.DeviceID, id, tenantID,
+	)
+	if err != nil {
+		h.logger.Error("vehicle update", zap.Error(err))
+		respondError(c, http.StatusInternalServerError, "database error")
+		return
+	}
+	if tag.RowsAffected() == 0 {
+		respondError(c, http.StatusNotFound, "vehicle not found")
+		return
+	}
 	c.JSON(http.StatusNoContent, nil)
 }
 func (h *VehicleHandler) Delete(c *gin.Context) {
@@ -180,6 +215,14 @@ func (h *GeofenceHandler) List(c *gin.Context) {
 			"geometry": vals[3], "created_at": vals[4]}
 		gs = append(gs, m)
 	}
+	if err := rows.Err(); err != nil {
+		h.logger.Error("rows error", zap.Error(err))
+		respondError(c, http.StatusInternalServerError, "database error")
+		return
+	}
+	if gs == nil {
+		gs = []map[string]any{}
+	}
 	respondOK(c, gs)
 }
 func (h *GeofenceHandler) Create(c *gin.Context) {
@@ -206,10 +249,109 @@ func (h *GeofenceHandler) Create(c *gin.Context) {
 	}
 	respondCreated(c, gin.H{"id": id})
 }
-func (h *GeofenceHandler) Get(c *gin.Context)    { respondOK(c, gin.H{}) }
-func (h *GeofenceHandler) Update(c *gin.Context)  { c.JSON(http.StatusNoContent, nil) }
-func (h *GeofenceHandler) Delete(c *gin.Context)  { c.JSON(http.StatusNoContent, nil) }
-func (h *GeofenceHandler) Events(c *gin.Context)  { respondOK(c, []any{}) }
+func (h *GeofenceHandler) Get(c *gin.Context) {
+	tenantID := pkgauth.TenantID(c)
+	id := c.Param("id")
+	rows, err := h.pool.Query(c.Request.Context(),
+		`SELECT id, name, shape_type, ST_AsGeoJSON(geometry)::text, created_at
+		 FROM geofences WHERE id=$1 AND tenant_id=$2 AND deleted_at IS NULL`,
+		id, tenantID,
+	)
+	if err != nil {
+		h.logger.Error("geofence get query", zap.Error(err))
+		respondError(c, http.StatusInternalServerError, "database error")
+		return
+	}
+	defer rows.Close()
+	if !rows.Next() {
+		respondError(c, http.StatusNotFound, "geofence not found")
+		return
+	}
+	vals, err := rows.Values()
+	if err != nil {
+		h.logger.Error("geofence get scan", zap.Error(err))
+		respondError(c, http.StatusInternalServerError, "database error")
+		return
+	}
+	respondOK(c, map[string]any{"id": vals[0], "name": vals[1], "shape_type": vals[2], "geometry": vals[3], "created_at": vals[4]})
+}
+func (h *GeofenceHandler) Update(c *gin.Context) {
+	tenantID := pkgauth.TenantID(c)
+	var body struct {
+		Name      string `json:"name" binding:"required"`
+		ShapeType string `json:"shape_type" binding:"required"`
+		GeoJSON   string `json:"geojson" binding:"required"`
+	}
+	if err := c.ShouldBindJSON(&body); err != nil {
+		respondError(c, http.StatusBadRequest, err.Error())
+		return
+	}
+	tag, err := h.pool.Exec(c.Request.Context(),
+		`UPDATE geofences SET name=$1, shape_type=$2, geometry=ST_GeomFromGeoJSON($3)
+		 WHERE id=$4 AND tenant_id=$5 AND deleted_at IS NULL`,
+		body.Name, body.ShapeType, body.GeoJSON, c.Param("id"), tenantID,
+	)
+	if err != nil {
+		h.logger.Error("geofence update", zap.Error(err))
+		respondError(c, http.StatusInternalServerError, "database error")
+		return
+	}
+	if tag.RowsAffected() == 0 {
+		respondError(c, http.StatusNotFound, "geofence not found")
+		return
+	}
+	c.JSON(http.StatusNoContent, nil)
+}
+func (h *GeofenceHandler) Delete(c *gin.Context) {
+	tenantID := pkgauth.TenantID(c)
+	tag, err := h.pool.Exec(c.Request.Context(),
+		`UPDATE geofences SET deleted_at=now() WHERE id=$1 AND tenant_id=$2 AND deleted_at IS NULL`,
+		c.Param("id"), tenantID,
+	)
+	if err != nil {
+		h.logger.Error("geofence delete", zap.Error(err))
+		respondError(c, http.StatusInternalServerError, "database error")
+		return
+	}
+	if tag.RowsAffected() == 0 {
+		respondError(c, http.StatusNotFound, "geofence not found")
+		return
+	}
+	c.JSON(http.StatusNoContent, nil)
+}
+func (h *GeofenceHandler) Events(c *gin.Context) {
+	tenantID := pkgauth.TenantID(c)
+	geofenceID := c.Param("id")
+	rows, err := h.pool.Query(c.Request.Context(),
+		`SELECT id, device_id, event_type, occurred_at
+		 FROM geofence_events WHERE geofence_id=$1 AND tenant_id=$2 ORDER BY occurred_at DESC LIMIT 100`,
+		geofenceID, tenantID,
+	)
+	if err != nil {
+		h.logger.Error("geofence events query", zap.Error(err))
+		respondError(c, http.StatusInternalServerError, "database error")
+		return
+	}
+	defer rows.Close()
+	var events []map[string]any
+	for rows.Next() {
+		vals, err := rows.Values()
+		if err != nil {
+			h.logger.Error("geofence events scan", zap.Error(err))
+			continue
+		}
+		events = append(events, map[string]any{"id": vals[0], "device_id": vals[1], "event_type": vals[2], "occurred_at": vals[3]})
+	}
+	if err := rows.Err(); err != nil {
+		h.logger.Error("geofence events rows error", zap.Error(err))
+		respondError(c, http.StatusInternalServerError, "database error")
+		return
+	}
+	if events == nil {
+		events = []map[string]any{}
+	}
+	respondOK(c, events)
+}
 
 // ── AlertHandler ──────────────────────────────────────────────────────────────
 
@@ -249,6 +391,14 @@ func (h *AlertHandler) List(c *gin.Context) {
 			}
 		}
 		alerts = append(alerts, m)
+	}
+	if err := rows.Err(); err != nil {
+		h.logger.Error("rows error", zap.Error(err))
+		respondError(c, http.StatusInternalServerError, "database error")
+		return
+	}
+	if alerts == nil {
+		alerts = []map[string]any{}
 	}
 	respondOK(c, alerts)
 }
@@ -327,6 +477,14 @@ func (h *ReportHandler) Trips(c *gin.Context) {
 			"max_speed": vals[6],
 		})
 	}
+	if err := rows.Err(); err != nil {
+		h.logger.Error("rows error", zap.Error(err))
+		respondError(c, http.StatusInternalServerError, "database error")
+		return
+	}
+	if trips == nil {
+		trips = []map[string]any{}
+	}
 	respondOK(c, trips)
 }
 
@@ -352,7 +510,11 @@ func (h *ReportHandler) Fuel(c *gin.Context) {
 	defer rows.Close()
 	var items []map[string]any
 	for rows.Next() {
-		vals, _ := rows.Values()
+		vals, err := rows.Values()
+		if err != nil {
+			h.logger.Error("scan row", zap.Error(err))
+			continue
+		}
 		if len(vals) >= 3 {
 			items = append(items, map[string]any{
 				"date":         vals[0],
@@ -360,6 +522,14 @@ func (h *ReportHandler) Fuel(c *gin.Context) {
 				"total_cost":   vals[2],
 			})
 		}
+	}
+	if err := rows.Err(); err != nil {
+		h.logger.Error("rows error", zap.Error(err))
+		respondError(c, http.StatusInternalServerError, "database error")
+		return
+	}
+	if items == nil {
+		items = []map[string]any{}
 	}
 	respondOK(c, items)
 }
@@ -391,7 +561,11 @@ func (h *ReportHandler) DriverBehavior(c *gin.Context) {
 	defer rows.Close()
 	var items []map[string]any
 	for rows.Next() {
-		vals, _ := rows.Values()
+		vals, err := rows.Values()
+		if err != nil {
+			h.logger.Error("scan row", zap.Error(err))
+			continue
+		}
 		if len(vals) >= 6 {
 			hAccel, _ := vals[3].(int64)
 			hBrake, _ := vals[4].(int64)
@@ -410,6 +584,14 @@ func (h *ReportHandler) DriverBehavior(c *gin.Context) {
 				"score":       score,
 			})
 		}
+	}
+	if err := rows.Err(); err != nil {
+		h.logger.Error("rows error", zap.Error(err))
+		respondError(c, http.StatusInternalServerError, "database error")
+		return
+	}
+	if items == nil {
+		items = []map[string]any{}
 	}
 	respondOK(c, items)
 }
@@ -435,7 +617,11 @@ func (h *ReportHandler) GeofenceViolations(c *gin.Context) {
 	defer rows.Close()
 	var items []map[string]any
 	for rows.Next() {
-		vals, _ := rows.Values()
+		vals, err := rows.Values()
+		if err != nil {
+			h.logger.Error("scan row", zap.Error(err))
+			continue
+		}
 		if len(vals) >= 5 {
 			items = append(items, map[string]any{
 				"id":             vals[0],
@@ -445,6 +631,14 @@ func (h *ReportHandler) GeofenceViolations(c *gin.Context) {
 				"occurred_at":    vals[4],
 			})
 		}
+	}
+	if err := rows.Err(); err != nil {
+		h.logger.Error("rows error", zap.Error(err))
+		respondError(c, http.StatusInternalServerError, "database error")
+		return
+	}
+	if items == nil {
+		items = []map[string]any{}
 	}
 	respondOK(c, items)
 }
@@ -488,10 +682,67 @@ func (h *DriverHandler) List(c *gin.Context) {
 		}
 		ds = append(ds, m)
 	}
+	if err := rows.Err(); err != nil {
+		h.logger.Error("rows error", zap.Error(err))
+		respondError(c, http.StatusInternalServerError, "database error")
+		return
+	}
+	if ds == nil {
+		ds = []map[string]any{}
+	}
 	respondOK(c, ds)
 }
-func (h *DriverHandler) Create(c *gin.Context) { respondCreated(c, gin.H{"id": "new"}) }
-func (h *DriverHandler) Get(c *gin.Context)    { respondOK(c, gin.H{}) }
+func (h *DriverHandler) Create(c *gin.Context) {
+	tenantID := pkgauth.TenantID(c)
+	var body struct {
+		Name          string `json:"name" binding:"required"`
+		LicenseNumber string `json:"license_number"`
+		RfidUid       string `json:"rfid_uid"`
+		Phone         string `json:"phone"`
+	}
+	if err := c.ShouldBindJSON(&body); err != nil {
+		respondError(c, http.StatusBadRequest, err.Error())
+		return
+	}
+	var id string
+	err := h.pool.QueryRow(c.Request.Context(),
+		`INSERT INTO drivers (tenant_id, name, license_number, rfid_uid, phone)
+		 VALUES ($1,$2,$3,$4,$5) RETURNING id`,
+		tenantID, body.Name, body.LicenseNumber, body.RfidUid, body.Phone,
+	).Scan(&id)
+	if err != nil || id == "" {
+		h.logger.Error("driver create", zap.Error(err))
+		respondError(c, http.StatusInternalServerError, "database error")
+		return
+	}
+	respondCreated(c, gin.H{"id": id})
+}
+func (h *DriverHandler) Get(c *gin.Context) {
+	tenantID := pkgauth.TenantID(c)
+	id := c.Param("id")
+	rows, err := h.pool.Query(c.Request.Context(),
+		`SELECT id, name, license_number, rfid_uid, phone, created_at
+		 FROM drivers WHERE id=$1 AND tenant_id=$2 AND deleted_at IS NULL`,
+		id, tenantID,
+	)
+	if err != nil {
+		h.logger.Error("driver get query", zap.Error(err))
+		respondError(c, http.StatusInternalServerError, "database error")
+		return
+	}
+	defer rows.Close()
+	if !rows.Next() {
+		respondError(c, http.StatusNotFound, "driver not found")
+		return
+	}
+	vals, err := rows.Values()
+	if err != nil {
+		h.logger.Error("driver get scan", zap.Error(err))
+		respondError(c, http.StatusInternalServerError, "database error")
+		return
+	}
+	respondOK(c, map[string]any{"id": vals[0], "name": vals[1], "license_number": vals[2], "rfid_uid": vals[3], "phone": vals[4], "created_at": vals[5]})
+}
 func (h *DriverHandler) Score(c *gin.Context) {
 	tenantID := pkgauth.TenantID(c)
 	driverID := c.Param("id")
@@ -509,7 +760,7 @@ func (h *DriverHandler) Score(c *gin.Context) {
 
 	var trips, duration, hAccel, hBrake, overspeed int
 	if err := row.Scan(&trips, &duration, &hAccel, &hBrake, &overspeed); err != nil {
-		respondError(c, http.StatusInternalServerError, "failed to compute score")
+		respondError(c, http.StatusInternalServerError, "database error")
 		return
 	}
 

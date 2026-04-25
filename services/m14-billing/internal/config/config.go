@@ -13,7 +13,7 @@ type Config struct {
 func Load() *Config {
 	return &Config{
 		Port:          env("PORT", "4014"),
-		DatabaseURL:   env("DATABASE_URL", "postgres://fleet:fleetpass@localhost:5414/fleet_billing_db?sslmode=disable"),
+		DatabaseURL:   env("DATABASE_URL", "postgres://fleet:fleetpass@localhost:5414/fleet_billing_db?sslmode=require"),
 		KafkaBrokers:  env("KAFKA_BROKERS", "localhost:29092"),
 		StripeKey:     env("STRIPE_SECRET_KEY", ""),
 		WebhookSecret: env("STRIPE_WEBHOOK_SECRET", ""),
