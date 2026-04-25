@@ -28,7 +28,7 @@ func (h *Handler) listDefinitions(w http.ResponseWriter, r *http.Request) {
 	tenantID := middleware.GetTenantID(r.Context())
 	ds, err := h.service.ListDefinitions(r.Context(), tenantID)
 	if err != nil {
-		writeError(w, http.StatusInternalServerError, err.Error())
+		writeError(w, http.StatusInternalServerError, "internal server error")
 		return
 	}
 	if ds == nil { ds = []repository.ReportDefinition{} }
@@ -45,7 +45,7 @@ func (h *Handler) createDefinition(w http.ResponseWriter, r *http.Request) {
 	d.TenantID = tenantID
 	created, err := h.service.CreateDefinition(r.Context(), d)
 	if err != nil {
-		writeError(w, http.StatusInternalServerError, err.Error())
+		writeError(w, http.StatusInternalServerError, "internal server error")
 		return
 	}
 	writeJSON(w, http.StatusCreated, created)
@@ -56,7 +56,7 @@ func (h *Handler) runReport(w http.ResponseWriter, r *http.Request) {
 	defID := chi.URLParam(r, "id")
 	run, err := h.service.RunReport(r.Context(), defID, tenantID)
 	if err != nil {
-		writeError(w, http.StatusInternalServerError, err.Error())
+		writeError(w, http.StatusInternalServerError, "internal server error")
 		return
 	}
 	writeJSON(w, http.StatusAccepted, run)
@@ -66,7 +66,7 @@ func (h *Handler) listRuns(w http.ResponseWriter, r *http.Request) {
 	tenantID := middleware.GetTenantID(r.Context())
 	runs, err := h.service.ListRuns(r.Context(), tenantID)
 	if err != nil {
-		writeError(w, http.StatusInternalServerError, err.Error())
+		writeError(w, http.StatusInternalServerError, "internal server error")
 		return
 	}
 	if runs == nil { runs = []repository.ReportRun{} }

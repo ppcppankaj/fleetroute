@@ -26,7 +26,7 @@ func (h *Handler) RegisterRoutes(r chi.Router) {
 func (h *Handler) listFeatures(w http.ResponseWriter, r *http.Request) {
 	fs, err := h.service.ListFeatures(r.Context())
 	if err != nil {
-		writeError(w, http.StatusInternalServerError, err.Error())
+		writeError(w, http.StatusInternalServerError, "internal server error")
 		return
 	}
 	if fs == nil { fs = []repository.Feature{} }
@@ -41,7 +41,7 @@ func (h *Handler) createFeature(w http.ResponseWriter, r *http.Request) {
 	}
 	created, err := h.service.CreateFeature(r.Context(), f)
 	if err != nil {
-		writeError(w, http.StatusInternalServerError, err.Error())
+		writeError(w, http.StatusInternalServerError, "internal server error")
 		return
 	}
 	writeJSON(w, http.StatusCreated, created)
@@ -52,7 +52,7 @@ func (h *Handler) castVote(w http.ResponseWriter, r *http.Request) {
 	userID := middleware.GetUserID(r.Context())
 	featureID := chi.URLParam(r, "id")
 	if err := h.service.CastVote(r.Context(), featureID, tenantID, userID); err != nil {
-		writeError(w, http.StatusInternalServerError, err.Error())
+		writeError(w, http.StatusInternalServerError, "internal server error")
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]string{"status": "voted"})

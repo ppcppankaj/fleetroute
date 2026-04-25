@@ -29,7 +29,7 @@ func (h *Handler) listTrips(w http.ResponseWriter, r *http.Request) {
 	tenantID := middleware.GetTenantID(r.Context())
 	trips, err := h.service.ListTrips(r.Context(), tenantID)
 	if err != nil {
-		writeError(w, http.StatusInternalServerError, err.Error())
+		writeError(w, http.StatusInternalServerError, "internal server error")
 		return
 	}
 	if trips == nil {
@@ -42,7 +42,7 @@ func (h *Handler) listRoutes(w http.ResponseWriter, r *http.Request) {
 	tenantID := middleware.GetTenantID(r.Context())
 	routes, err := h.service.ListRoutes(r.Context(), tenantID)
 	if err != nil {
-		writeError(w, http.StatusInternalServerError, err.Error())
+		writeError(w, http.StatusInternalServerError, "internal server error")
 		return
 	}
 	if routes == nil {
@@ -61,7 +61,7 @@ func (h *Handler) createRoute(w http.ResponseWriter, r *http.Request) {
 	ro.TenantID = tenantID
 	created, err := h.service.CreateRoute(r.Context(), ro)
 	if err != nil {
-		writeError(w, http.StatusInternalServerError, err.Error())
+		writeError(w, http.StatusInternalServerError, "internal server error")
 		return
 	}
 	writeJSON(w, http.StatusCreated, created)

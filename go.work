@@ -3,6 +3,8 @@ go 1.23.0
 use (
 	./api-service
 	./gateway
+	./ingestion-service
+	./maintenance-service
 	./pkg
 	./protocols
 	./scripts

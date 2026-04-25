@@ -27,7 +27,7 @@ func (h *Handler) listAuditLogs(w http.ResponseWriter, r *http.Request) {
 	tenantID := middleware.GetTenantID(r.Context())
 	logs, err := h.service.ListAuditLogs(r.Context(), tenantID)
 	if err != nil {
-		writeError(w, http.StatusInternalServerError, err.Error())
+		writeError(w, http.StatusInternalServerError, "internal server error")
 		return
 	}
 	if logs == nil { logs = []repository.AuditLog{} }
@@ -38,7 +38,7 @@ func (h *Handler) listIncidents(w http.ResponseWriter, r *http.Request) {
 	tenantID := middleware.GetTenantID(r.Context())
 	incs, err := h.service.ListIncidents(r.Context(), tenantID)
 	if err != nil {
-		writeError(w, http.StatusInternalServerError, err.Error())
+		writeError(w, http.StatusInternalServerError, "internal server error")
 		return
 	}
 	if incs == nil { incs = []repository.SecurityIncident{} }

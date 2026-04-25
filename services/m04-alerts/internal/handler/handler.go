@@ -28,7 +28,7 @@ func (h *Handler) listAlerts(w http.ResponseWriter, r *http.Request) {
 	tenantID := middleware.GetTenantID(r.Context())
 	alerts, err := h.service.ListActiveAlerts(r.Context(), tenantID)
 	if err != nil {
-		writeError(w, http.StatusInternalServerError, err.Error())
+		writeError(w, http.StatusInternalServerError, "internal server error")
 		return
 	}
 	if alerts == nil {
@@ -44,7 +44,7 @@ func (h *Handler) resolveAlert(w http.ResponseWriter, r *http.Request) {
 	
 	err := h.service.ResolveAlert(r.Context(), id, tenantID, userID)
 	if err != nil {
-		writeError(w, http.StatusInternalServerError, err.Error())
+		writeError(w, http.StatusInternalServerError, "internal server error")
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]string{"status": "resolved"})

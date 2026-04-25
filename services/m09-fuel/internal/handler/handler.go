@@ -28,7 +28,7 @@ func (h *Handler) listFuelLogs(w http.ResponseWriter, r *http.Request) {
 	tenantID := middleware.GetTenantID(r.Context())
 	logs, err := h.service.ListFuelLogs(r.Context(), tenantID)
 	if err != nil {
-		writeError(w, http.StatusInternalServerError, err.Error())
+		writeError(w, http.StatusInternalServerError, "internal server error")
 		return
 	}
 	if logs == nil {
@@ -47,7 +47,7 @@ func (h *Handler) createFuelLog(w http.ResponseWriter, r *http.Request) {
 	f.TenantID = tenantID
 	created, err := h.service.CreateFuelLog(r.Context(), f)
 	if err != nil {
-		writeError(w, http.StatusInternalServerError, err.Error())
+		writeError(w, http.StatusInternalServerError, "internal server error")
 		return
 	}
 	writeJSON(w, http.StatusCreated, created)

@@ -43,7 +43,7 @@ func (h *Handler) getBreadcrumbs(w http.ResponseWriter, r *http.Request) {
 
 	bs, err := h.service.GetBreadcrumbs(r.Context(), vehicleID, tenantID, limit)
 	if err != nil {
-		writeError(w, http.StatusInternalServerError, err.Error())
+		writeError(w, http.StatusInternalServerError, "internal server error")
 		return
 	}
 	if bs == nil {

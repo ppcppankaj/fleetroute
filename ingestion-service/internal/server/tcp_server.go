@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net"
 	"sync"
+	"time"
 
 	"go.uber.org/zap"
 
@@ -56,6 +57,10 @@ func (s *TCPServer) ListenAndServe(ctx context.Context) error {
 		ln.Close() // unblock Accept
 	}()
 
+	// Connection limiter (semaphore pattern)
+	maxConns := 10000
+	sem := make(chan struct{}, maxConns)
+
 	for {
 		conn, err := ln.Accept()
 		if err != nil {
@@ -69,9 +74,12 @@ func (s *TCPServer) ListenAndServe(ctx context.Context) error {
 				continue
 			}
 		}
+		
+		sem <- struct{}{}
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
+			defer func() { <-sem }()
 			s.handleConn(ctx, conn)
 		}()
 	}
@@ -79,6 +87,10 @@ func (s *TCPServer) ListenAndServe(ctx context.Context) error {
 
 func (s *TCPServer) handleConn(ctx context.Context, conn net.Conn) {
 	defer conn.Close()
+	
+	// Initial authentication read deadline
+	conn.SetReadDeadline(time.Now().Add(30 * time.Second))
+	
 	remoteAddr := conn.RemoteAddr().String()
 
 	s.logger.Info("new connection",
@@ -112,6 +124,9 @@ func (s *TCPServer) handleConn(ctx context.Context, conn net.Conn) {
 
 	// ── Parse loop ────────────────────────────────────────────────────────────
 	for {
+		// Reset read deadline on each parse loop
+		conn.SetReadDeadline(time.Now().Add(5 * time.Minute))
+
 		select {
 		case <-ctx.Done():
 			return

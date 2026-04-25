@@ -14,7 +14,7 @@ postgresql:
   auth:
     database: gpsgo
     username: gpsgo
-    password: gpsgo
+    existingSecret: gpsgo-db-secret
 redis:
   enabled: false             # set true for dev; use ElastiCache in production
 nats:

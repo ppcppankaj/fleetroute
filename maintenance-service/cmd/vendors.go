@@ -17,7 +17,7 @@ func (h *Handler) ListVendors(c *gin.Context) {
 		WHERE tenant_id = $1 AND deleted_at IS NULL
 		ORDER BY name`, tenantID)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "internal server error"})
 		return
 	}
 	defer rows.Close()
@@ -58,7 +58,7 @@ func (h *Handler) CreateVendor(c *gin.Context) {
 		tenantID, body.Name, body.ContactName, body.Phone, body.Email, body.Address, body.Services, body.Notes,
 	).Scan(&id)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "internal server error"})
 		return
 	}
 	c.JSON(http.StatusCreated, gin.H{"data": gin.H{"id": id}})
@@ -92,7 +92,7 @@ func (h *Handler) UpdateVendor(c *gin.Context) {
 		id, tenantID, body.Name, body.ContactName, body.Phone, body.Email, body.Address, body.Rating, body.Notes,
 	)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "internal server error"})
 		return
 	}
 	c.Status(http.StatusNoContent)
@@ -125,7 +125,7 @@ func (h *Handler) ListInspections(c *gin.Context) {
 
 	rows, err := h.pool.Query(c.Request.Context(), q, args...)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "internal server error"})
 		return
 	}
 	defer rows.Close()
@@ -178,7 +178,7 @@ func (h *Handler) CreateInspection(c *gin.Context) {
 		body.InspectedAt, body.Result, nilIfEmpty(body.NextDueAt), checklistJSON, body.Notes,
 	).Scan(&id)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "internal server error"})
 		return
 	}
 	c.JSON(http.StatusCreated, gin.H{"data": gin.H{"id": id}})
@@ -205,7 +205,7 @@ func (h *Handler) ListTyres(c *gin.Context) {
 
 	rows, err := h.pool.Query(c.Request.Context(), q, args...)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "internal server error"})
 		return
 	}
 	defer rows.Close()
@@ -257,7 +257,7 @@ func (h *Handler) CreateTyre(c *gin.Context) {
 		nilIfEmpty(body.FittedAt), body.FittedKm, body.TreadDepthMM, body.Condition, body.Notes,
 	).Scan(&id)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "internal server error"})
 		return
 	}
 	c.JSON(http.StatusCreated, gin.H{"data": gin.H{"id": id}})
@@ -284,7 +284,7 @@ func (h *Handler) UpdateTyre(c *gin.Context) {
 		id, tenantID, body.TreadDepthMM, body.Condition, nilIfEmpty(body.ReplacedAt), body.Notes,
 	)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "internal server error"})
 		return
 	}
 	c.Status(http.StatusNoContent)

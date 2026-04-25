@@ -22,15 +22,24 @@ func NewVehicleHandler(pool *pgxpool.Pool, logger *zap.Logger) *VehicleHandler {
 
 func (h *VehicleHandler) List(c *gin.Context) {
 	tenantID := pkgauth.TenantID(c)
-	rows, _ := h.pool.Query(c.Request.Context(),
+	rows, err := h.pool.Query(c.Request.Context(),
 		`SELECT id, tenant_id, registration, make, model, year, device_id, created_at
 		 FROM vehicles WHERE tenant_id=$1 AND deleted_at IS NULL ORDER BY registration`,
 		tenantID,
 	)
+	if err != nil {
+		h.logger.Error("vehicles list query", zap.Error(err))
+		respondError(c, http.StatusInternalServerError, "database error")
+		return
+	}
 	defer rows.Close()
 	var vs []map[string]any
 	for rows.Next() {
-		vals, _ := rows.Values()
+		vals, err := rows.Values()
+		if err != nil {
+			h.logger.Error("vehicles list scan", zap.Error(err))
+			continue
+		}
 		fields := []string{"id", "tenant_id", "registration", "make", "model", "year", "device_id", "created_at"}
 		m := make(map[string]any)
 		for i, f := range fields {
@@ -46,17 +55,27 @@ func (h *VehicleHandler) List(c *gin.Context) {
 func (h *VehicleHandler) Get(c *gin.Context) {
 	tenantID := pkgauth.TenantID(c)
 	id := c.Param("id")
-	rows, _ := h.pool.Query(c.Request.Context(),
+	rows, err := h.pool.Query(c.Request.Context(),
 		`SELECT id, tenant_id, registration, make, model, year, device_id, created_at
 		 FROM vehicles WHERE id=$1 AND tenant_id=$2 AND deleted_at IS NULL`,
 		id, tenantID,
 	)
+	if err != nil {
+		h.logger.Error("vehicle get query", zap.Error(err))
+		respondError(c, http.StatusInternalServerError, "database error")
+		return
+	}
 	defer rows.Close()
 	if !rows.Next() {
 		respondError(c, http.StatusNotFound, "vehicle not found")
 		return
 	}
-	vals, _ := rows.Values()
+	vals, err := rows.Values()
+	if err != nil {
+		h.logger.Error("vehicle get scan", zap.Error(err))
+		respondError(c, http.StatusInternalServerError, "database error")
+		return
+	}
 	respondOK(c, vals)
 }
 
@@ -74,11 +93,16 @@ func (h *VehicleHandler) Create(c *gin.Context) {
 		return
 	}
 	var id string
-	h.pool.QueryRow(c.Request.Context(),
+	err := h.pool.QueryRow(c.Request.Context(),
 		`INSERT INTO vehicles (tenant_id, registration, make, model, year, device_id)
 		 VALUES ($1,$2,$3,$4,$5,$6) RETURNING id`,
 		tenantID, body.Registration, body.Make, body.Model, body.Year, body.DeviceID,
 	).Scan(&id)
+	if err != nil || id == "" {
+		h.logger.Error("vehicle create", zap.Error(err))
+		respondError(c, http.StatusInternalServerError, "database error")
+		return
+	}
 	respondCreated(c, gin.H{"id": id})
 }
 
@@ -134,15 +158,24 @@ func NewGeofenceHandler(pool *pgxpool.Pool, logger *zap.Logger) *GeofenceHandler
 }
 func (h *GeofenceHandler) List(c *gin.Context) {
 	tenantID := pkgauth.TenantID(c)
-	rows, _ := h.pool.Query(c.Request.Context(),
+	rows, err := h.pool.Query(c.Request.Context(),
 		`SELECT id, name, shape_type, ST_AsGeoJSON(geometry)::text, created_at
 		 FROM geofences WHERE tenant_id=$1 AND deleted_at IS NULL`,
 		tenantID,
 	)
+	if err != nil {
+		h.logger.Error("geofence list query", zap.Error(err))
+		respondError(c, http.StatusInternalServerError, "database error")
+		return
+	}
 	defer rows.Close()
 	var gs []map[string]any
 	for rows.Next() {
-		vals, _ := rows.Values()
+		vals, err := rows.Values()
+		if err != nil {
+			h.logger.Error("geofence list scan", zap.Error(err))
+			continue
+		}
 		m := map[string]any{"id": vals[0], "name": vals[1], "shape_type": vals[2],
 			"geometry": vals[3], "created_at": vals[4]}
 		gs = append(gs, m)
@@ -161,11 +194,16 @@ func (h *GeofenceHandler) Create(c *gin.Context) {
 		return
 	}
 	var id string
-	h.pool.QueryRow(c.Request.Context(),
+	err := h.pool.QueryRow(c.Request.Context(),
 		`INSERT INTO geofences (tenant_id, name, shape_type, geometry)
 		 VALUES ($1, $2, $3, ST_GeomFromGeoJSON($4)) RETURNING id`,
 		tenantID, body.Name, body.ShapeType, body.GeoJSON,
 	).Scan(&id)
+	if err != nil || id == "" {
+		h.logger.Error("geofence create", zap.Error(err))
+		respondError(c, http.StatusInternalServerError, "database error")
+		return
+	}
 	respondCreated(c, gin.H{"id": id})
 }
 func (h *GeofenceHandler) Get(c *gin.Context)    { respondOK(c, gin.H{}) }
@@ -185,15 +223,24 @@ func NewAlertHandler(pool *pgxpool.Pool, logger *zap.Logger) *AlertHandler {
 }
 func (h *AlertHandler) List(c *gin.Context) {
 	tenantID := pkgauth.TenantID(c)
-	rows, _ := h.pool.Query(c.Request.Context(),
+	rows, err := h.pool.Query(c.Request.Context(),
 		`SELECT id, device_id, rule_id, alert_type, severity, message, triggered_at, acknowledged_at
 		 FROM alerts WHERE tenant_id=$1 ORDER BY triggered_at DESC LIMIT 100`,
 		tenantID,
 	)
+	if err != nil {
+		h.logger.Error("alert list query", zap.Error(err))
+		respondError(c, http.StatusInternalServerError, "database error")
+		return
+	}
 	defer rows.Close()
 	var alerts []map[string]any
 	for rows.Next() {
-		vals, _ := rows.Values()
+		vals, err := rows.Values()
+		if err != nil {
+			h.logger.Error("alert list scan", zap.Error(err))
+			continue
+		}
 		fields := []string{"id", "device_id", "rule_id", "alert_type", "severity", "message", "triggered_at", "acknowledged_at"}
 		m := make(map[string]any)
 		for i, f := range fields {
@@ -256,15 +303,24 @@ func NewReportHandler(pool *pgxpool.Pool, logger *zap.Logger) *ReportHandler {
 }
 func (h *ReportHandler) Trips(c *gin.Context) {
 	tenantID := pkgauth.TenantID(c)
-	rows, _ := h.pool.Query(c.Request.Context(),
+	rows, err := h.pool.Query(c.Request.Context(),
 		`SELECT id, device_id, started_at, ended_at, distance_m, duration_s, max_speed 
 		 FROM trips WHERE tenant_id=$1 ORDER BY started_at DESC LIMIT 50`,
 		tenantID,
 	)
+	if err != nil {
+		h.logger.Error("report trips query", zap.Error(err))
+		respondError(c, http.StatusInternalServerError, "database error")
+		return
+	}
 	defer rows.Close()
 	var trips []map[string]any
 	for rows.Next() {
-		vals, _ := rows.Values()
+		vals, err := rows.Values()
+		if err != nil {
+			h.logger.Error("report trips scan", zap.Error(err))
+			continue
+		}
 		trips = append(trips, map[string]any{
 			"id": vals[0], "device_id": vals[1], "started_at": vals[2],
 			"ended_at": vals[3], "distance_m": vals[4], "duration_s": vals[5],
@@ -405,15 +461,24 @@ func NewDriverHandler(pool *pgxpool.Pool, logger *zap.Logger) *DriverHandler {
 }
 func (h *DriverHandler) List(c *gin.Context) {
 	tenantID := pkgauth.TenantID(c)
-	rows, _ := h.pool.Query(c.Request.Context(),
+	rows, err := h.pool.Query(c.Request.Context(),
 		`SELECT id, name, license_number, rfid_uid, phone, created_at
 		 FROM drivers WHERE tenant_id=$1 AND deleted_at IS NULL ORDER BY name`,
 		tenantID,
 	)
+	if err != nil {
+		h.logger.Error("driver list query", zap.Error(err))
+		respondError(c, http.StatusInternalServerError, "database error")
+		return
+	}
 	defer rows.Close()
 	var ds []map[string]any
 	for rows.Next() {
-		vals, _ := rows.Values()
+		vals, err := rows.Values()
+		if err != nil {
+			h.logger.Error("driver list scan", zap.Error(err))
+			continue
+		}
 		fields := []string{"id", "name", "license_number", "rfid_uid", "phone", "created_at"}
 		m := make(map[string]any)
 		for i, f := range fields {

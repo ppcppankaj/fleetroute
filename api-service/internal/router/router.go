@@ -82,87 +82,143 @@ func New(
 		auth.POST("/logout", authHandler.Logout)
 	}
 
-	// Protected routes — require valid JWT
+	// Protected routes — require valid JWT + RLS transaction + rate limit
 	protected := v1.Group("")
 	protected.Use(pkgauth.Middleware(authMgr))
 	protected.Use(middleware.RLS(pool, logger))
 	protected.Use(middleware.RateLimit(rdb, logger))
 	{
-		// Devices
+		// ── Devices (C1: RBAC enforced) ───────────────────────────────────────
+		// Read operations: all authenticated roles
+		// Write operations: require devices:write
+		// Delete: require devices:write
+		// OTA push: require commands:send (privileged operation)
 		devices := protected.Group("/devices")
 		devices.GET("", deviceHandler.List)
-		devices.POST("", deviceHandler.Create)
+		devices.POST("",
+			pkgauth.RequirePermission(pkgauth.PermWriteDevices),
+			deviceHandler.Create,
+		)
 		devices.GET("/:id", deviceHandler.Get)
-		devices.PUT("/:id", deviceHandler.Update)
-		devices.DELETE("/:id", deviceHandler.Delete)
+		devices.PUT("/:id",
+			pkgauth.RequirePermission(pkgauth.PermWriteDevices),
+			deviceHandler.Update,
+		)
+		devices.DELETE("/:id",
+			pkgauth.RequirePermission(pkgauth.PermWriteDevices),
+			deviceHandler.Delete,
+		)
 		devices.GET("/:id/live", deviceHandler.Live)
 		devices.GET("/:id/history", deviceHandler.History)
 		devices.GET("/:id/trips", deviceHandler.Trips)
 		devices.GET("/:id/telemetry", deviceHandler.Telemetry)
 
-		// Vehicles
+		// ── Vehicles ──────────────────────────────────────────────────────────
 		vehicles := protected.Group("/vehicles")
 		vehicles.GET("", vehicleHandler.List)
-		vehicles.POST("", vehicleHandler.Create)
+		vehicles.POST("",
+			pkgauth.RequirePermission(pkgauth.PermWriteDevices),
+			vehicleHandler.Create,
+		)
 		vehicles.GET("/:id", vehicleHandler.Get)
-		vehicles.PUT("/:id", vehicleHandler.Update)
-		vehicles.DELETE("/:id", vehicleHandler.Delete)
-		vehicles.POST("/:id/command", vehicleHandler.SendCommand)
+		vehicles.PUT("/:id",
+			pkgauth.RequirePermission(pkgauth.PermWriteDevices),
+			vehicleHandler.Update,
+		)
+		vehicles.DELETE("/:id",
+			pkgauth.RequirePermission(pkgauth.PermWriteDevices),
+			vehicleHandler.Delete,
+		)
+		vehicles.POST("/:id/command",
+			pkgauth.RequirePermission(pkgauth.PermSendCommands),
+			vehicleHandler.SendCommand,
+		)
 
-		// Drivers
+		// ── Drivers ───────────────────────────────────────────────────────────
 		drivers := protected.Group("/drivers")
 		drivers.GET("", driverHandler.List)
-		drivers.POST("", driverHandler.Create)
+		drivers.POST("",
+			pkgauth.RequirePermission(pkgauth.PermManageUsers),
+			driverHandler.Create,
+		)
 		drivers.GET("/:id", driverHandler.Get)
 		drivers.GET("/:id/score", driverHandler.Score)
 
-		// Geofences
+		// ── Geofences ─────────────────────────────────────────────────────────
 		geofences := protected.Group("/geofences")
 		geofences.GET("", geofenceHandler.List)
-		geofences.POST("", geofenceHandler.Create)
+		geofences.POST("",
+			pkgauth.RequirePermission(pkgauth.PermWriteDevices),
+			geofenceHandler.Create,
+		)
 		geofences.GET("/:id", geofenceHandler.Get)
-		geofences.PUT("/:id", geofenceHandler.Update)
-		geofences.DELETE("/:id", geofenceHandler.Delete)
+		geofences.PUT("/:id",
+			pkgauth.RequirePermission(pkgauth.PermWriteDevices),
+			geofenceHandler.Update,
+		)
+		geofences.DELETE("/:id",
+			pkgauth.RequirePermission(pkgauth.PermWriteDevices),
+			geofenceHandler.Delete,
+		)
 		geofences.GET("/:id/events", geofenceHandler.Events)
 
-		// Alerts
+		// ── Alerts ────────────────────────────────────────────────────────────
 		alerts := protected.Group("/alerts")
 		alerts.GET("", alertHandler.List)
 		alerts.POST("/:id/acknowledge", alertHandler.Acknowledge)
 
-		// Rules (DB-backed CRUD)
+		// ── Rules (DB-backed CRUD) ────────────────────────────────────────────
 		rules := protected.Group("/rules")
 		rules.GET("", ruleHandler.ListFromDB)
-		rules.POST("", ruleHandler.CreateFromDB)
+		rules.POST("",
+			pkgauth.RequirePermission(pkgauth.PermWriteDevices),
+			ruleHandler.CreateFromDB,
+		)
 		rules.GET("/:id", ruleHandler.GetFromDB)
-		rules.PUT("/:id", ruleHandler.UpdateFromDB)
-		rules.DELETE("/:id", ruleHandler.DeleteFromDB)
+		rules.PUT("/:id",
+			pkgauth.RequirePermission(pkgauth.PermWriteDevices),
+			ruleHandler.UpdateFromDB,
+		)
+		rules.DELETE("/:id",
+			pkgauth.RequirePermission(pkgauth.PermWriteDevices),
+			ruleHandler.DeleteFromDB,
+		)
 		rules.GET("/templates", ruleHandler.Templates)
 
-		// Fuel Management (M09)
+		// ── Fuel Management (M09) ─────────────────────────────────────────────
 		fuel := protected.Group("/fuel")
 		fuel.GET("/logs", fuelHandler.ListFuelLogs)
-		fuel.POST("/logs", fuelHandler.CreateFuelLog)
+		fuel.POST("/logs",
+			pkgauth.RequirePermission(pkgauth.PermWriteDevices),
+			fuelHandler.CreateFuelLog,
+		)
 		fuel.GET("/summary", fuelHandler.FuelSummary)
 		fuel.GET("/anomalies", fuelHandler.ListAnomalies)
-		fuel.POST("/anomalies/:id/confirm", fuelHandler.ConfirmAnomaly)
+		fuel.POST("/anomalies/:id/confirm",
+			pkgauth.RequirePermission(pkgauth.PermWriteDevices),
+			fuelHandler.ConfirmAnomaly,
+		)
 
-		// Video Telematics (M15) — stub, returns 501 until implemented
+		// ── Video Telematics (M15) ────────────────────────────────────────────
 		video := protected.Group("/video")
 		videoHandler := handler.NewVideoHandler(pool, logger)
 		video.GET("/events", videoHandler.ListEvents)
-		video.POST("/devices/:deviceId/snapshot", videoHandler.TriggerSnapshot)
+		video.POST("/devices/:deviceId/snapshot",
+			pkgauth.RequirePermission(pkgauth.PermSendCommands),
+			videoHandler.TriggerSnapshot,
+		)
 		video.GET("/devices/:deviceId/livestream", videoHandler.GetLiveStreamCredentials)
 
-		// Reports
+		// ── Reports ───────────────────────────────────────────────────────────
 		reports := protected.Group("/reports")
 		reports.GET("/trips", reportHandler.Trips)
 		reports.GET("/fuel", reportHandler.Fuel)
 		reports.GET("/driver-behavior", reportHandler.DriverBehavior)
 		reports.GET("/geofence-violations", reportHandler.GeofenceViolations)
 
-		// Users & Roles (M11)
+		// ── Users & Roles (M11) — require user management permission ─────────
 		users := protected.Group("/users")
+		users.Use(pkgauth.RequirePermission(pkgauth.PermManageUsers))
 		users.GET("", userHandler.ListUsers)
 		users.POST("", userHandler.CreateUser)
 		users.GET("/:id", userHandler.GetUser)
@@ -170,8 +226,9 @@ func New(
 		users.DELETE("/:id", userHandler.DeleteUser)
 		protected.GET("/roles", ruleHandler.ListRoles)
 
-		// Tenant settings & branding (M10)
+		// ── Tenant settings & branding (M10) — require tenant admin ──────────
 		tenant := protected.Group("/tenant")
+		tenant.Use(pkgauth.RequirePermission(pkgauth.PermManageTenants))
 		tenant.GET("/settings", tenantHandler.GetSettings)
 		tenant.PUT("/settings", tenantHandler.UpdateSettings)
 		tenant.GET("/branding", tenantHandler.GetBranding)
@@ -179,20 +236,26 @@ func New(
 		tenant.GET("/feature-flags", tenantHandler.GetFeatureFlags)
 		tenant.PUT("/feature-flags/:feature", tenantHandler.SetFeatureFlag)
 
-		// Billing (M14)
+		// ── Billing (M14) — read: all; write: tenant admin ───────────────────
 		billing := protected.Group("/billing")
 		billing.GET("/plans", billingHandler.GetPlans)
 		billing.GET("/subscription", billingHandler.GetSubscription)
 		billing.GET("/invoices", billingHandler.GetInvoices)
 		billing.GET("/usage", billingHandler.GetUsage)
 
-		// Audit log (M16)
-		protected.GET("/audit", auditHandler.List)
+		// ── Audit log (M16) — fleet manager and above ────────────────────────
+		protected.GET("/audit",
+			pkgauth.RequirePermission(pkgauth.PermReadReports),
+			auditHandler.List,
+		)
 
-		// Device management extras (M12)
+		// ── Device management extras (M12) ────────────────────────────────────
 		protected.GET("/device-protocols", devMgmtHandler.ListProtocols)
 		protected.GET("/devices/:id/health", devMgmtHandler.GetHealth)
-		protected.POST("/devices/:id/ota", devMgmtHandler.TriggerOTA)
+		protected.POST("/devices/:id/ota",
+			pkgauth.RequirePermission(pkgauth.PermSendCommands),
+			devMgmtHandler.TriggerOTA,
+		)
 	}
 
 	return r

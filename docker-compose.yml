@@ -59,6 +59,7 @@ volumes:
   prometheus_data:
   grafana_data:
   loki_data:
+  nats_data:
 
 secrets:
   jwt_private:
@@ -134,6 +135,24 @@ services:
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+
+  # ── NATS JetStream ─────────────────────────────────────────────────────
+  nats:
+    image: nats:2.10-alpine
+    container_name: fleet-nats
+    command: ["--jetstream", "--store_dir=/data"]
+    ports:
+      - "4222:4222"
+      - "8222:8222"
+    volumes:
+      - nats_data:/data
+    networks: [fleet]
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:8222/healthz"]
       interval: 10s
       timeout: 3s
       retries: 5
@@ -808,8 +827,8 @@ services:
       PORT: "4014"
       DATABASE_URL: postgres://fleet:${POSTGRES_PASSWORD_M14:?POSTGRES_PASSWORD_M14 is required}@postgres-m14:5432/fleet_billing_db?sslmode=disable
       KAFKA_BROKERS: kafka:9092
-      STRIPE_SECRET_KEY: ${STRIPE_SECRET_KEY:-sk_test_placeholder}
-      STRIPE_WEBHOOK_SECRET: ${STRIPE_WEBHOOK_SECRET:-whsec_placeholder}
+      STRIPE_SECRET_KEY: ${STRIPE_SECRET_KEY:?STRIPE_SECRET_KEY is required}
+      STRIPE_WEBHOOK_SECRET: ${STRIPE_WEBHOOK_SECRET:?STRIPE_WEBHOOK_SECRET is required}
     networks: [fleet]
     depends_on:
       postgres-m14:

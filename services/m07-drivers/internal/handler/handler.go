@@ -30,7 +30,7 @@ func (h *Handler) listDrivers(w http.ResponseWriter, r *http.Request) {
 	tenantID := middleware.GetTenantID(r.Context())
 	ds, err := h.service.ListDrivers(r.Context(), tenantID)
 	if err != nil {
-		writeError(w, http.StatusInternalServerError, err.Error())
+		writeError(w, http.StatusInternalServerError, "internal server error")
 		return
 	}
 	if ds == nil {
@@ -60,7 +60,7 @@ func (h *Handler) createDriver(w http.ResponseWriter, r *http.Request) {
 	d.TenantID = tenantID
 	created, err := h.service.CreateDriver(r.Context(), d)
 	if err != nil {
-		writeError(w, http.StatusInternalServerError, err.Error())
+		writeError(w, http.StatusInternalServerError, "internal server error")
 		return
 	}
 	writeJSON(w, http.StatusCreated, created)
@@ -70,7 +70,7 @@ func (h *Handler) deleteDriver(w http.ResponseWriter, r *http.Request) {
 	tenantID := middleware.GetTenantID(r.Context())
 	id := chi.URLParam(r, "id")
 	if err := h.service.DeleteDriver(r.Context(), id, tenantID); err != nil {
-		writeError(w, http.StatusInternalServerError, err.Error())
+		writeError(w, http.StatusInternalServerError, "internal server error")
 		return
 	}
 	w.WriteHeader(http.StatusNoContent)

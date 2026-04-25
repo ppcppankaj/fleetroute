@@ -82,8 +82,10 @@ func RateLimit(rdb *redis.Client, logger *zap.Logger) gin.HandlerFunc {
 		key := "ratelimit:api:" + tenantID
 		ctx := c.Request.Context()
 
-		count, err := rdb.Incr(ctx, key).Result()
-		if err != nil {
+		pipe := rdb.Pipeline()
+		incr := pipe.Incr(ctx, key)
+		pipe.Expire(ctx, key, time.Minute)
+		if _, err := pipe.Exec(ctx); err != nil {
 			logger.Warn("rate limiter fail-open: Redis unavailable — rate limiting disabled for this request",
 				zap.String("tenant_id", tenantID),
 				zap.Error(err),
@@ -91,9 +93,8 @@ func RateLimit(rdb *redis.Client, logger *zap.Logger) gin.HandlerFunc {
 			c.Next()
 			return
 		}
-		if count == 1 {
-			rdb.Expire(ctx, key, time.Minute) //nolint:errcheck
-		}
+
+		count := incr.Val()
 
 		c.Header("X-RateLimit-Limit", "1000")
 		c.Header("X-RateLimit-Remaining", itoa(max(0, 1000-int(count))))

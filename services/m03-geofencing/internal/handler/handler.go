@@ -28,7 +28,7 @@ func (h *Handler) listGeofences(w http.ResponseWriter, r *http.Request) {
 	tenantID := middleware.GetTenantID(r.Context())
 	gs, err := h.service.ListGeofences(r.Context(), tenantID)
 	if err != nil {
-		writeError(w, http.StatusInternalServerError, err.Error())
+		writeError(w, http.StatusInternalServerError, "internal server error")
 		return
 	}
 	if gs == nil {
@@ -47,7 +47,7 @@ func (h *Handler) createGeofence(w http.ResponseWriter, r *http.Request) {
 	g.TenantID = tenantID
 	created, err := h.service.CreateGeofence(r.Context(), g)
 	if err != nil {
-		writeError(w, http.StatusInternalServerError, err.Error())
+		writeError(w, http.StatusInternalServerError, "internal server error")
 		return
 	}
 	writeJSON(w, http.StatusCreated, created)

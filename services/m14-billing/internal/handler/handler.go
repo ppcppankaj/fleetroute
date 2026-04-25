@@ -37,7 +37,7 @@ func (h *Handler) listInvoices(w http.ResponseWriter, r *http.Request) {
 	tenantID := middleware.GetTenantID(r.Context())
 	invs, err := h.service.ListInvoices(r.Context(), tenantID)
 	if err != nil {
-		writeError(w, http.StatusInternalServerError, err.Error())
+		writeError(w, http.StatusInternalServerError, "internal server error")
 		return
 	}
 	if invs == nil { invs = []repository.Invoice{} }
@@ -54,7 +54,7 @@ func (h *Handler) createInvoice(w http.ResponseWriter, r *http.Request) {
 	inv.TenantID = tenantID
 	created, err := h.service.CreateInvoice(r.Context(), inv)
 	if err != nil {
-		writeError(w, http.StatusInternalServerError, err.Error())
+		writeError(w, http.StatusInternalServerError, "internal server error")
 		return
 	}
 	writeJSON(w, http.StatusCreated, created)

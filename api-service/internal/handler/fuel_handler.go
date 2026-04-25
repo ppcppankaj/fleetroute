@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"strconv"
 
 	"github.com/gin-gonic/gin"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -27,7 +28,11 @@ func NewFuelHandler(pool *pgxpool.Pool, logger *zap.Logger) *FuelHandler {
 func (h *FuelHandler) ListFuelLogs(c *gin.Context) {
 	tenantID := pkgauth.TenantID(c)
 	vehicleID := c.Query("vehicle_id")
-	limit := c.DefaultQuery("limit", "100")
+	limitInt, err := strconv.Atoi(c.DefaultQuery("limit", "100"))
+	if err != nil || limitInt < 1 || limitInt > 1000 {
+		respondError(c, http.StatusBadRequest, "invalid limit")
+		return
+	}
 
 	q := `SELECT fl.id, fl.vehicle_id, v.registration, fl.driver_id,
 	             fl.liters, fl.cost_per_liter, fl.total_cost, fl.currency,
@@ -41,7 +46,8 @@ func (h *FuelHandler) ListFuelLogs(c *gin.Context) {
 		q += ` AND fl.vehicle_id = $2`
 		args = append(args, vehicleID)
 	}
-	q += ` ORDER BY fl.filled_at DESC LIMIT ` + limit
+	q += ` ORDER BY fl.filled_at DESC LIMIT $` + strconv.Itoa(len(args)+1)
+	args = append(args, limitInt)
 
 	rows, err := h.pool.Query(c.Request.Context(), q, args...)
 	if err != nil {

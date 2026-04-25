@@ -28,7 +28,7 @@ func (h *Handler) RegisterRoutes(r chi.Router) {
 func (h *Handler) listTenants(w http.ResponseWriter, r *http.Request) {
 	ts, err := h.service.ListTenants(r.Context())
 	if err != nil {
-		writeError(w, http.StatusInternalServerError, err.Error())
+		writeError(w, http.StatusInternalServerError, "internal server error")
 		return
 	}
 	if ts == nil { ts = []repository.Tenant{} }
@@ -53,7 +53,7 @@ func (h *Handler) createTenant(w http.ResponseWriter, r *http.Request) {
 	}
 	created, err := h.service.CreateTenant(r.Context(), t)
 	if err != nil {
-		writeError(w, http.StatusInternalServerError, err.Error())
+		writeError(w, http.StatusInternalServerError, "internal server error")
 		return
 	}
 	writeJSON(w, http.StatusCreated, created)
@@ -62,7 +62,7 @@ func (h *Handler) createTenant(w http.ResponseWriter, r *http.Request) {
 func (h *Handler) suspend(w http.ResponseWriter, r *http.Request) {
 	id := chi.URLParam(r, "id")
 	if err := h.service.SuspendTenant(r.Context(), id); err != nil {
-		writeError(w, http.StatusInternalServerError, err.Error())
+		writeError(w, http.StatusInternalServerError, "internal server error")
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]string{"status": "suspended"})
@@ -71,7 +71,7 @@ func (h *Handler) suspend(w http.ResponseWriter, r *http.Request) {
 func (h *Handler) activate(w http.ResponseWriter, r *http.Request) {
 	id := chi.URLParam(r, "id")
 	if err := h.service.ActivateTenant(r.Context(), id); err != nil {
-		writeError(w, http.StatusInternalServerError, err.Error())
+		writeError(w, http.StatusInternalServerError, "internal server error")
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]string{"status": "active"})

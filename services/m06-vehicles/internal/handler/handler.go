@@ -30,7 +30,7 @@ func (h *Handler) listVehicles(w http.ResponseWriter, r *http.Request) {
 	tenantID := middleware.GetTenantID(r.Context())
 	vs, err := h.service.ListVehicles(r.Context(), tenantID)
 	if err != nil {
-		writeError(w, http.StatusInternalServerError, err.Error())
+		writeError(w, http.StatusInternalServerError, "internal server error")
 		return
 	}
 	if vs == nil {
@@ -60,7 +60,7 @@ func (h *Handler) createVehicle(w http.ResponseWriter, r *http.Request) {
 	v.TenantID = tenantID
 	created, err := h.service.CreateVehicle(r.Context(), v)
 	if err != nil {
-		writeError(w, http.StatusInternalServerError, err.Error())
+		writeError(w, http.StatusInternalServerError, "internal server error")
 		return
 	}
 	writeJSON(w, http.StatusCreated, created)
@@ -70,7 +70,7 @@ func (h *Handler) deleteVehicle(w http.ResponseWriter, r *http.Request) {
 	tenantID := middleware.GetTenantID(r.Context())
 	id := chi.URLParam(r, "id")
 	if err := h.service.DeleteVehicle(r.Context(), id, tenantID); err != nil {
-		writeError(w, http.StatusInternalServerError, err.Error())
+		writeError(w, http.StatusInternalServerError, "internal server error")
 		return
 	}
 	w.WriteHeader(http.StatusNoContent)

@@ -50,7 +50,7 @@ func (h *Handler) listTickets(w http.ResponseWriter, r *http.Request) {
 	status := r.URL.Query().Get("status")
 	tickets, err := h.service.ListTickets(r.Context(), status)
 	if err != nil {
-		writeError(w, http.StatusInternalServerError, err.Error())
+		writeError(w, http.StatusInternalServerError, "internal server error")
 		return
 	}
 	if tickets == nil { tickets = []repository.SupportTicket{} }
@@ -65,7 +65,7 @@ func (h *Handler) createTicket(w http.ResponseWriter, r *http.Request) {
 	}
 	created, err := h.service.CreateTicket(r.Context(), t)
 	if err != nil {
-		writeError(w, http.StatusInternalServerError, err.Error())
+		writeError(w, http.StatusInternalServerError, "internal server error")
 		return
 	}
 	writeJSON(w, http.StatusCreated, created)

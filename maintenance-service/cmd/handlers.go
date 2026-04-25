@@ -43,7 +43,7 @@ func (h *Handler) ListSchedules(c *gin.Context) {
 
 	rows, err := h.pool.Query(c.Request.Context(), q, args...)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "internal server error"})
 		return
 	}
 	defer rows.Close()
@@ -102,7 +102,7 @@ func (h *Handler) CreateSchedule(c *gin.Context) {
 		body.IntervalDays, body.IntervalKm, body.WarnDaysBefore, body.WarnKmBefore,
 	).Scan(&id)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "internal server error"})
 		return
 	}
 	c.JSON(http.StatusCreated, gin.H{"data": gin.H{"id": id}})
@@ -132,7 +132,7 @@ func (h *Handler) UpdateSchedule(c *gin.Context) {
 		id, tenantID, body.Description, body.IntervalDays, body.IntervalKm, body.Enabled,
 	)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "internal server error"})
 		return
 	}
 	c.Status(http.StatusNoContent)
@@ -194,7 +194,7 @@ func (h *Handler) CompleteService(c *gin.Context) {
 		body.Cost, body.Notes, partsJSON,
 	).Scan(&logID)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "internal server error"})
 		return
 	}
 
@@ -226,7 +226,7 @@ func (h *Handler) ListServiceLog(c *gin.Context) {
 		WHERE sl.tenant_id = $1
 		ORDER BY sl.serviced_at DESC LIMIT 200`, tenantID)
 	if err != nil {
-		c.JSON(500, gin.H{"error": err.Error()})
+		c.JSON(500, gin.H{"error": "internal server error"})
 		return
 	}
 	defer rows.Close()
@@ -273,7 +273,7 @@ func (h *Handler) ListDocuments(c *gin.Context) {
 		WHERE vd.tenant_id = $1 AND vd.deleted_at IS NULL
 		ORDER BY vd.expires_at ASC NULLS LAST`, tenantID)
 	if err != nil {
-		c.JSON(500, gin.H{"error": err.Error()})
+		c.JSON(500, gin.H{"error": "internal server error"})
 		return
 	}
 	defer rows.Close()
@@ -331,7 +331,7 @@ func (h *Handler) ListParts(c *gin.Context) {
 		SELECT id, name, part_number, description, qty_in_stock, reorder_threshold, unit_cost, currency, supplier
 		FROM spare_parts WHERE tenant_id=$1 AND deleted_at IS NULL ORDER BY name`, tenantID)
 	if err != nil {
-		c.JSON(500, gin.H{"error": err.Error()})
+		c.JSON(500, gin.H{"error": "internal server error"})
 		return
 	}
 	defer rows.Close()

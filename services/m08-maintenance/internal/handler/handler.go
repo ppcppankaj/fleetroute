@@ -29,7 +29,7 @@ func (h *Handler) listTasks(w http.ResponseWriter, r *http.Request) {
 	tenantID := middleware.GetTenantID(r.Context())
 	tasks, err := h.service.ListTasks(r.Context(), tenantID)
 	if err != nil {
-		writeError(w, http.StatusInternalServerError, err.Error())
+		writeError(w, http.StatusInternalServerError, "internal server error")
 		return
 	}
 	if tasks == nil {
@@ -48,7 +48,7 @@ func (h *Handler) createTask(w http.ResponseWriter, r *http.Request) {
 	t.TenantID = tenantID
 	created, err := h.service.CreateTask(r.Context(), t)
 	if err != nil {
-		writeError(w, http.StatusInternalServerError, err.Error())
+		writeError(w, http.StatusInternalServerError, "internal server error")
 		return
 	}
 	writeJSON(w, http.StatusCreated, created)
@@ -67,7 +67,7 @@ func (h *Handler) completeTask(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if err := h.service.CompleteTask(r.Context(), id, tenantID, body.Cost, body.Vendor, body.Notes); err != nil {
-		writeError(w, http.StatusInternalServerError, err.Error())
+		writeError(w, http.StatusInternalServerError, "internal server error")
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]string{"status": "completed"})
