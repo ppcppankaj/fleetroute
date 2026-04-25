@@ -37,6 +37,10 @@ func (e *GeofenceEngine) Check(ctx context.Context, rec *EnrichedRecord) {
 				zap.String("device_id", rec.DeviceID),
 				zap.String("geofence", name))
 				
+			// TODO: GeofenceEngine currently emits a DWELL event for every frame 
+			// where the device is inside the geofence. Real geofencing requires Redis
+			// state tracking (per device-per-zone) to emit ENTRY on the first match
+			// and EXIT when the device leaves, to avoid flooding Kafka at high GPS frequencies.
 			rec.GeneratedEvents = append(rec.GeneratedEvents, &types.GeofenceBreachEvent{
 				ZoneID:    gid,
 				ZoneName:  name,
