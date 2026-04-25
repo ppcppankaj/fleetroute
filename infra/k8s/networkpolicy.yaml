@@ -58,12 +58,19 @@ apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
   name: allow-ingestion
+  # Device ingestion ports accept raw TCP/UDP from GPS devices that arrive
+  # via the external load balancer / gateway pod. No internal pod other than
+  # the gateway should be able to reach these ports.
 spec:
   podSelector:
     matchLabels:
       app: ingestion-service
   ingress:
-  - ports:
+  - from:
+    - podSelector:
+        matchLabels:
+          app: gateway        # only the API gateway / LB forwarder can reach ingestion
+    ports:
     - protocol: TCP
       port: 5001
     - protocol: TCP

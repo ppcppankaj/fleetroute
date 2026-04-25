@@ -21,6 +21,13 @@ frontend/.env.*.local
 .env.local
 *.env
 
+# Secrets — NEVER commit private keys or certificates
+secrets/
+*.pem
+*.key
+*.p12
+*.pfx
+
 # IDE
 .idea/
 .vscode/

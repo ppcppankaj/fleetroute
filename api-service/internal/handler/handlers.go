@@ -108,9 +108,18 @@ func (h *VehicleHandler) SendCommand(c *gin.Context) {
 		respondError(c, http.StatusBadRequest, err.Error())
 		return
 	}
-	// TODO: look up device for vehicle, dispatch command via connection registry
-	// Commands: "immobilize", "unlock", "request_config", "reboot"
-	c.JSON(http.StatusAccepted, gin.H{"data": gin.H{"status": "queued", "command": body.Command}})
+	// TODO: Implement command dispatch via NATS/Kafka device command topic.
+	// Steps:
+	//   1. Resolve vehicle → device_id from DB
+	//   2. Look up active TCP session for device_id in Redis (KeyDeviceSession)
+	//   3. Publish command envelope to cmd:device:<device_id> topic
+	//   4. Wait for ACK or timeout and return result
+	// Until this is implemented, return 501 so callers know the command was NOT sent.
+	// Commands like "immobilize" must never silently succeed while doing nothing.
+	c.JSON(http.StatusNotImplemented, gin.H{
+		"error":  "command dispatch not yet implemented",
+		"detail": "vehicle command queuing requires the device command registry (see TODO in handler)",
+	})
 }
 
 // ── GeofenceHandler ───────────────────────────────────────────────────────────

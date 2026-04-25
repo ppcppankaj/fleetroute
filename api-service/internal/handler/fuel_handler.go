@@ -53,7 +53,11 @@ func (h *FuelHandler) ListFuelLogs(c *gin.Context) {
 
 	var logs []map[string]any
 	for rows.Next() {
-		vals, _ := rows.Values()
+		vals, err := rows.Values()
+		if err != nil {
+			h.logger.Error("fuel logs: scan row", zap.Error(err))
+			continue
+		}
 		fields := []string{"id", "vehicle_id", "registration", "driver_id",
 			"liters", "cost_per_liter", "total_cost", "currency",
 			"odometer_km", "station_name", "fill_type", "filled_at"}
@@ -64,6 +68,11 @@ func (h *FuelHandler) ListFuelLogs(c *gin.Context) {
 			}
 		}
 		logs = append(logs, m)
+	}
+	if err := rows.Err(); err != nil {
+		h.logger.Error("fuel logs: row iteration", zap.Error(err))
+		respondError(c, http.StatusInternalServerError, "internal server error")
+		return
 	}
 	respondOK(c, logs)
 }
@@ -140,7 +149,11 @@ func (h *FuelHandler) FuelSummary(c *gin.Context) {
 
 	var summary []map[string]any
 	for rows.Next() {
-		vals, _ := rows.Values()
+		vals, err := rows.Values()
+		if err != nil {
+			h.logger.Error("fuel summary: scan row", zap.Error(err))
+			continue
+		}
 		fields := []string{"vehicle_id", "registration", "fill_count",
 			"total_liters", "total_cost", "avg_cost_per_liter", "last_fill"}
 		m := make(map[string]any)
@@ -150,6 +163,11 @@ func (h *FuelHandler) FuelSummary(c *gin.Context) {
 			}
 		}
 		summary = append(summary, m)
+	}
+	if err := rows.Err(); err != nil {
+		h.logger.Error("fuel summary: row iteration", zap.Error(err))
+		respondError(c, http.StatusInternalServerError, "internal server error")
+		return
 	}
 	respondOK(c, summary)
 }
@@ -187,7 +205,11 @@ func (h *FuelHandler) ListAnomalies(c *gin.Context) {
 
 	var anomalies []map[string]any
 	for rows.Next() {
-		vals, _ := rows.Values()
+		vals, err := rows.Values()
+		if err != nil {
+			h.logger.Error("fuel anomalies: scan row", zap.Error(err))
+			continue
+		}
 		fields := []string{"id", "vehicle_id", "registration", "anomaly_type",
 			"drop_liters", "drop_percent", "start_level", "end_level",
 			"detected_at", "confirmed", "notes"}
@@ -198,6 +220,11 @@ func (h *FuelHandler) ListAnomalies(c *gin.Context) {
 			}
 		}
 		anomalies = append(anomalies, m)
+	}
+	if err := rows.Err(); err != nil {
+		h.logger.Error("fuel anomalies: row iteration", zap.Error(err))
+		respondError(c, http.StatusInternalServerError, "internal server error")
+		return
 	}
 	respondOK(c, anomalies)
 }
@@ -242,14 +269,19 @@ func (h *RuleHandler) ListFromDB(c *gin.Context) {
 		WHERE tenant_id = $1 AND deleted_at IS NULL
 		ORDER BY created_at DESC`, tenantID)
 	if err != nil {
-		respondError(c, http.StatusInternalServerError, err.Error())
+		h.logger.Error("list alert rules", zap.Error(err))
+		respondError(c, http.StatusInternalServerError, "internal server error")
 		return
 	}
 	defer rows.Close()
 
 	var rules []map[string]any
 	for rows.Next() {
-		vals, _ := rows.Values()
+		vals, err := rows.Values()
+		if err != nil {
+			h.logger.Error("alert rules: scan row", zap.Error(err))
+			continue
+		}
 		fields := []string{"id", "name", "alert_type", "severity", "conditions",
 			"speed_limit", "cooldown_s", "enabled", "trigger_count",
 			"last_triggered", "created_at"}
@@ -260,6 +292,11 @@ func (h *RuleHandler) ListFromDB(c *gin.Context) {
 			}
 		}
 		rules = append(rules, m)
+	}
+	if err := rows.Err(); err != nil {
+		h.logger.Error("alert rules: row iteration", zap.Error(err))
+		respondError(c, http.StatusInternalServerError, "internal server error")
+		return
 	}
 	respondOK(c, rules)
 }
@@ -353,7 +390,6 @@ func (h *RuleHandler) DeleteFromDB(c *gin.Context) {
 // GetFromDB returns a single rule with its full conditions.
 func (h *RuleHandler) GetFromDB(c *gin.Context) {
 	tenantID := pkgauth.TenantID(c)
-	var vals []any
 	rows, err := h.pool.Query(c.Request.Context(), `
 		SELECT id, name, alert_type, severity, conditions, speed_limit,
 		       cooldown_s, enabled, description, trigger_count, last_triggered
@@ -364,7 +400,12 @@ func (h *RuleHandler) GetFromDB(c *gin.Context) {
 		return
 	}
 	defer rows.Close()
-	vals, _ = rows.Values()
+	vals, err := rows.Values()
+	if err != nil {
+		h.logger.Error("alert rule get: scan", zap.Error(err))
+		respondError(c, http.StatusInternalServerError, "internal server error")
+		return
+	}
 	fields := []string{"id", "name", "alert_type", "severity", "conditions",
 		"speed_limit", "cooldown_s", "enabled", "description", "trigger_count", "last_triggered"}
 	m := make(map[string]any)
