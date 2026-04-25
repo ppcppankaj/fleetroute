@@ -9,6 +9,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/redis/go-redis/v9"
 	"go.uber.org/zap"
+	"gpsgo/shared/types"
 )
 
 // FuelAnomalyDetector detects rapid unexplained fuel drops (theft / siphoning).
@@ -118,20 +119,11 @@ func (d *FuelAnomalyDetector) saveState(ctx context.Context, key string, state f
 func (d *FuelAnomalyDetector) persistAnomaly(ctx context.Context, rec *EnrichedRecord,
 	startLevel, dropLiters int, dropPct float64) {
 
-	// Look up vehicle_id from device_id
-	var vehicleID, tenantID string
-	err := d.pool.QueryRow(ctx, `
-		SELECT v.id, v.tenant_id FROM vehicles v
-		JOIN devices d ON d.id = v.device_id
-		WHERE d.imei = $1 OR d.id::text = $1
-		LIMIT 1`, rec.DeviceID).Scan(&vehicleID, &tenantID)
-	if err != nil {
-		d.logger.Warn("fuel anomaly: vehicle not found", zap.String("device", rec.DeviceID))
-		vehicleID = rec.DeviceID // fallback
-		tenantID = rec.TenantID
-	}
+	// H2 populated VehicleID on every EnrichedRecord
+	vehicleID := rec.VehicleID
+	tenantID := rec.TenantID
 
-	_, err = d.pool.Exec(ctx, `
+	_, err := d.pool.Exec(ctx, `
 		INSERT INTO fuel_anomalies (
 			tenant_id, vehicle_id, device_id, anomaly_type,
 			drop_liters, drop_percent, start_level, end_level, detected_at
@@ -142,13 +134,25 @@ func (d *FuelAnomalyDetector) persistAnomaly(ctx context.Context, rec *EnrichedR
 		d.logger.Error("persist fuel anomaly", zap.Error(err))
 	}
 
-	// Also insert an alert for the notification pipeline
-	_, _ = d.pool.Exec(ctx, `
+	var alertID string
+	err = d.pool.QueryRow(ctx, `
 		INSERT INTO alerts (tenant_id, device_id, alert_type, severity, message,
 		                    lat, lng, speed, triggered_at)
 		VALUES ($1, $2, 'fuel_theft', 'critical',
 		        format('Fuel theft suspected — %.1f%% drop (ignition OFF)', $3::float),
-		        $4, $5, $6, $7)`,
+		        $4, $5, $6, $7)
+		RETURNING id`,
 		tenantID, rec.DeviceID, dropPct,
-		rec.Lat, rec.Lng, rec.Speed, rec.Timestamp)
+		rec.Lat, rec.Lng, rec.Speed, rec.Timestamp).Scan(&alertID)
+	
+	if err == nil {
+		rec.GeneratedEvents = append(rec.GeneratedEvents, &types.FuelTheftSuspectedEvent{
+			VehicleID:  vehicleID,
+			TenantID:   tenantID,
+			LitersLost: float64(dropLiters),
+			Lat:        rec.Lat,
+			Lng:        rec.Lng,
+			DetectedAt: rec.Timestamp,
+		})
+	}
 }
