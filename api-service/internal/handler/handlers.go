@@ -424,11 +424,7 @@ type RuleHandler struct {
 func NewRuleHandler(pool *pgxpool.Pool, logger *zap.Logger) *RuleHandler {
 	return &RuleHandler{pool: pool, logger: logger}
 }
-func (h *RuleHandler) List(c *gin.Context)      { respondOK(c, []any{}) }
-func (h *RuleHandler) Create(c *gin.Context)    { respondCreated(c, gin.H{"id": "new"}) }
-func (h *RuleHandler) Get(c *gin.Context)       { respondOK(c, gin.H{}) }
-func (h *RuleHandler) Update(c *gin.Context)    { c.JSON(http.StatusNoContent, nil) }
-func (h *RuleHandler) Delete(c *gin.Context)    { c.JSON(http.StatusNoContent, nil) }
+
 func (h *RuleHandler) Templates(c *gin.Context) {
 	respondOK(c, []gin.H{
 		{"id": "overspeed", "name": "Overspeed Alert", "description": "Alert when speed exceeds threshold"},

@@ -64,11 +64,11 @@ func New(
 	ruleHandler     := handler.NewRuleHandler(pool, logger)
 	reportHandler   := handler.NewReportHandler(pool, logger)
 	driverHandler   := handler.NewDriverHandler(pool, logger)
-	userHandler     := handler.NewUserHandler()
-	tenantHandler   := handler.NewTenantHandler()
-	billingHandler  := handler.NewBillingHandler()
-	auditHandler    := handler.NewAuditHandler()
-	devMgmtHandler  := handler.NewDeviceManagementHandler()
+	userHandler     := handler.NewUserHandler(pool, logger)
+	tenantHandler   := handler.NewTenantHandler(pool, logger)
+	billingHandler  := handler.NewBillingHandler(pool, logger)
+	auditHandler    := handler.NewAuditHandler(pool, logger)
+	devMgmtHandler  := handler.NewDeviceManagementHandler(pool, logger)
 	fuelHandler     := handler.NewFuelHandler(pool, logger)
 
 	// ── v1 routes ─────────────────────────────────────────────────────────────
