@@ -142,8 +142,8 @@ services:
     container_name: fleet-minio
     command: server /data --console-address ":9001"
     environment:
-      MINIO_ROOT_USER: minioadmin
-      MINIO_ROOT_PASSWORD: minioadmin123
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:?MINIO_ROOT_USER is required}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:?MINIO_ROOT_PASSWORD is required}
     volumes:
       - minio_data:/data
     ports:
@@ -200,7 +200,7 @@ services:
     image: grafana/grafana:11.0.0
     container_name: fleet-grafana
     environment:
-      GF_SECURITY_ADMIN_PASSWORD: admin
+      GF_SECURITY_ADMIN_PASSWORD: ${GF_SECURITY_ADMIN_PASSWORD:?GF_SECURITY_ADMIN_PASSWORD is required}
       GF_USERS_ALLOW_SIGN_UP: "false"
       GF_FEATURE_TOGGLES_ENABLE: tempoSearch,tempoBackendSearch
     volumes:
@@ -219,7 +219,7 @@ services:
   postgres-m01:
     image: postgres:15-alpine
     container_name: fleet-postgres-m01
-    environment: { POSTGRES_DB: fleet_tracking_db, POSTGRES_USER: fleet, POSTGRES_PASSWORD: fleetpass }
+    environment: { POSTGRES_DB: fleet_tracking_db, POSTGRES_USER: fleet, POSTGRES_PASSWORD: "${POSTGRES_PASSWORD_M01:?POSTGRES_PASSWORD_M01 is required}" }
     volumes: ["pgdata_m01:/var/lib/postgresql/data"]
     ports: ["5401:5432"]
     networks: [fleet]
@@ -233,7 +233,7 @@ services:
   postgres-m02:
     image: postgres:15-alpine
     container_name: fleet-postgres-m02
-    environment: { POSTGRES_DB: fleet_routes_db, POSTGRES_USER: fleet, POSTGRES_PASSWORD: fleetpass }
+    environment: { POSTGRES_DB: fleet_routes_db, POSTGRES_USER: fleet, POSTGRES_PASSWORD: "${POSTGRES_PASSWORD_M02:?POSTGRES_PASSWORD_M02 is required}" }
     volumes: ["pgdata_m02:/var/lib/postgresql/data"]
     ports: ["5402:5432"]
     networks: [fleet]
@@ -243,7 +243,7 @@ services:
   postgres-m03:
     image: postgres:15-alpine
     container_name: fleet-postgres-m03
-    environment: { POSTGRES_DB: fleet_geofencing_db, POSTGRES_USER: fleet, POSTGRES_PASSWORD: fleetpass }
+    environment: { POSTGRES_DB: fleet_geofencing_db, POSTGRES_USER: fleet, POSTGRES_PASSWORD: "${POSTGRES_PASSWORD_M03:?POSTGRES_PASSWORD_M03 is required}" }
     volumes: ["pgdata_m03:/var/lib/postgresql/data"]
     ports: ["5403:5432"]
     networks: [fleet]
@@ -253,7 +253,7 @@ services:
   postgres-m04:
     image: postgres:15-alpine
     container_name: fleet-postgres-m04
-    environment: { POSTGRES_DB: fleet_alerts_db, POSTGRES_USER: fleet, POSTGRES_PASSWORD: fleetpass }
+    environment: { POSTGRES_DB: fleet_alerts_db, POSTGRES_USER: fleet, POSTGRES_PASSWORD: "${POSTGRES_PASSWORD_M04:?POSTGRES_PASSWORD_M04 is required}" }
     volumes: ["pgdata_m04:/var/lib/postgresql/data"]
     ports: ["5404:5432"]
     networks: [fleet]
@@ -263,7 +263,7 @@ services:
   postgres-m05:
     image: postgres:15-alpine
     container_name: fleet-postgres-m05
-    environment: { POSTGRES_DB: fleet_reports_db, POSTGRES_USER: fleet, POSTGRES_PASSWORD: fleetpass }
+    environment: { POSTGRES_DB: fleet_reports_db, POSTGRES_USER: fleet, POSTGRES_PASSWORD: "${POSTGRES_PASSWORD_M05:?POSTGRES_PASSWORD_M05 is required}" }
     volumes: ["pgdata_m05:/var/lib/postgresql/data"]
     ports: ["5405:5432"]
     networks: [fleet]
@@ -273,7 +273,7 @@ services:
   postgres-m06:
     image: postgres:15-alpine
     container_name: fleet-postgres-m06
-    environment: { POSTGRES_DB: fleet_vehicles_db, POSTGRES_USER: fleet, POSTGRES_PASSWORD: fleetpass }
+    environment: { POSTGRES_DB: fleet_vehicles_db, POSTGRES_USER: fleet, POSTGRES_PASSWORD: "${POSTGRES_PASSWORD_M06:?POSTGRES_PASSWORD_M06 is required}" }
     volumes: ["pgdata_m06:/var/lib/postgresql/data"]
     ports: ["5406:5432"]
     networks: [fleet]
@@ -283,7 +283,7 @@ services:
   postgres-m07:
     image: postgres:15-alpine
     container_name: fleet-postgres-m07
-    environment: { POSTGRES_DB: fleet_drivers_db, POSTGRES_USER: fleet, POSTGRES_PASSWORD: fleetpass }
+    environment: { POSTGRES_DB: fleet_drivers_db, POSTGRES_USER: fleet, POSTGRES_PASSWORD: "${POSTGRES_PASSWORD_M07:?POSTGRES_PASSWORD_M07 is required}" }
     volumes: ["pgdata_m07:/var/lib/postgresql/data"]
     ports: ["5407:5432"]
     networks: [fleet]
@@ -293,7 +293,7 @@ services:
   postgres-m08:
     image: postgres:15-alpine
     container_name: fleet-postgres-m08
-    environment: { POSTGRES_DB: fleet_maintenance_db, POSTGRES_USER: fleet, POSTGRES_PASSWORD: fleetpass }
+    environment: { POSTGRES_DB: fleet_maintenance_db, POSTGRES_USER: fleet, POSTGRES_PASSWORD: "${POSTGRES_PASSWORD_M08:?POSTGRES_PASSWORD_M08 is required}" }
     volumes: ["pgdata_m08:/var/lib/postgresql/data"]
     ports: ["5408:5432"]
     networks: [fleet]
@@ -303,7 +303,7 @@ services:
   postgres-m09:
     image: postgres:15-alpine
     container_name: fleet-postgres-m09
-    environment: { POSTGRES_DB: fleet_fuel_db, POSTGRES_USER: fleet, POSTGRES_PASSWORD: fleetpass }
+    environment: { POSTGRES_DB: fleet_fuel_db, POSTGRES_USER: fleet, POSTGRES_PASSWORD: "${POSTGRES_PASSWORD_M09:?POSTGRES_PASSWORD_M09 is required}" }
     volumes: ["pgdata_m09:/var/lib/postgresql/data"]
     ports: ["5409:5432"]
     networks: [fleet]
@@ -313,7 +313,7 @@ services:
   postgres-m10:
     image: postgres:15-alpine
     container_name: fleet-postgres-m10
-    environment: { POSTGRES_DB: fleet_tenants_db, POSTGRES_USER: fleet, POSTGRES_PASSWORD: fleetpass }
+    environment: { POSTGRES_DB: fleet_tenants_db, POSTGRES_USER: fleet, POSTGRES_PASSWORD: "${POSTGRES_PASSWORD_M10:?POSTGRES_PASSWORD_M10 is required}" }
     volumes: ["pgdata_m10:/var/lib/postgresql/data"]
     ports: ["5410:5432"]
     networks: [fleet]
@@ -323,7 +323,7 @@ services:
   postgres-m11:
     image: postgres:15-alpine
     container_name: fleet-postgres-m11
-    environment: { POSTGRES_DB: fleet_users_db, POSTGRES_USER: fleet, POSTGRES_PASSWORD: fleetpass }
+    environment: { POSTGRES_DB: fleet_users_db, POSTGRES_USER: fleet, POSTGRES_PASSWORD: "${POSTGRES_PASSWORD_M11:?POSTGRES_PASSWORD_M11 is required}" }
     volumes: ["pgdata_m11:/var/lib/postgresql/data"]
     ports: ["5411:5432"]
     networks: [fleet]
@@ -333,7 +333,7 @@ services:
   postgres-m12:
     image: postgres:15-alpine
     container_name: fleet-postgres-m12
-    environment: { POSTGRES_DB: fleet_devices_db, POSTGRES_USER: fleet, POSTGRES_PASSWORD: fleetpass }
+    environment: { POSTGRES_DB: fleet_devices_db, POSTGRES_USER: fleet, POSTGRES_PASSWORD: "${POSTGRES_PASSWORD_M12:?POSTGRES_PASSWORD_M12 is required}" }
     volumes: ["pgdata_m12:/var/lib/postgresql/data"]
     ports: ["5412:5432"]
     networks: [fleet]
@@ -343,7 +343,7 @@ services:
   postgres-m13:
     image: postgres:15-alpine
     container_name: fleet-postgres-m13
-    environment: { POSTGRES_DB: fleet_security_db, POSTGRES_USER: fleet, POSTGRES_PASSWORD: fleetpass }
+    environment: { POSTGRES_DB: fleet_security_db, POSTGRES_USER: fleet, POSTGRES_PASSWORD: "${POSTGRES_PASSWORD_M13:?POSTGRES_PASSWORD_M13 is required}" }
     volumes: ["pgdata_m13:/var/lib/postgresql/data"]
     ports: ["5413:5432"]
     networks: [fleet]
@@ -353,7 +353,7 @@ services:
   postgres-m14:
     image: postgres:15-alpine
     container_name: fleet-postgres-m14
-    environment: { POSTGRES_DB: fleet_billing_db, POSTGRES_USER: fleet, POSTGRES_PASSWORD: fleetpass }
+    environment: { POSTGRES_DB: fleet_billing_db, POSTGRES_USER: fleet, POSTGRES_PASSWORD: "${POSTGRES_PASSWORD_M14:?POSTGRES_PASSWORD_M14 is required}" }
     volumes: ["pgdata_m14:/var/lib/postgresql/data"]
     ports: ["5414:5432"]
     networks: [fleet]
@@ -363,7 +363,7 @@ services:
   postgres-m15:
     image: postgres:15-alpine
     container_name: fleet-postgres-m15
-    environment: { POSTGRES_DB: fleet_admin_db, POSTGRES_USER: fleet, POSTGRES_PASSWORD: fleetpass }
+    environment: { POSTGRES_DB: fleet_admin_db, POSTGRES_USER: fleet, POSTGRES_PASSWORD: "${POSTGRES_PASSWORD_M15:?POSTGRES_PASSWORD_M15 is required}" }
     volumes: ["pgdata_m15:/var/lib/postgresql/data"]
     ports: ["5415:5432"]
     networks: [fleet]
@@ -373,7 +373,7 @@ services:
   postgres-m16:
     image: postgres:15-alpine
     container_name: fleet-postgres-m16
-    environment: { POSTGRES_DB: fleet_activity_db, POSTGRES_USER: fleet, POSTGRES_PASSWORD: fleetpass }
+    environment: { POSTGRES_DB: fleet_activity_db, POSTGRES_USER: fleet, POSTGRES_PASSWORD: "${POSTGRES_PASSWORD_M16:?POSTGRES_PASSWORD_M16 is required}" }
     volumes: ["pgdata_m16:/var/lib/postgresql/data"]
     ports: ["5416:5432"]
     networks: [fleet]
@@ -383,7 +383,7 @@ services:
   postgres-m17:
     image: postgres:15-alpine
     container_name: fleet-postgres-m17
-    environment: { POSTGRES_DB: fleet_roadmap_db, POSTGRES_USER: fleet, POSTGRES_PASSWORD: fleetpass }
+    environment: { POSTGRES_DB: fleet_roadmap_db, POSTGRES_USER: fleet, POSTGRES_PASSWORD: "${POSTGRES_PASSWORD_M17:?POSTGRES_PASSWORD_M17 is required}" }
     volumes: ["pgdata_m17:/var/lib/postgresql/data"]
     ports: ["5417:5432"]
     networks: [fleet]
@@ -432,7 +432,7 @@ services:
       - "4001:4001"
     environment:
       PORT: "4001"
-      DATABASE_URL: postgres://fleet:fleetpass@postgres-m01:5432/fleet_tracking_db?sslmode=disable
+      DATABASE_URL: postgres://fleet:${POSTGRES_PASSWORD_M01:?POSTGRES_PASSWORD_M01 is required}@postgres-m01:5432/fleet_tracking_db?sslmode=disable
       KAFKA_BROKERS: kafka:9092
       REDIS_ADDR: redis:6379
       MQTT_BROKER: tcp://mosquitto:1883
@@ -461,7 +461,7 @@ services:
       - "4002:4002"
     environment:
       PORT: "4002"
-      DATABASE_URL: postgres://fleet:fleetpass@postgres-m02:5432/fleet_routes_db?sslmode=disable
+      DATABASE_URL: postgres://fleet:${POSTGRES_PASSWORD_M02:?POSTGRES_PASSWORD_M02 is required}@postgres-m02:5432/fleet_routes_db?sslmode=disable
       KAFKA_BROKERS: kafka:9092
       REDIS_ADDR: redis:6379
     networks: [fleet]
@@ -487,7 +487,7 @@ services:
       - "4003:4003"
     environment:
       PORT: "4003"
-      DATABASE_URL: postgres://fleet:fleetpass@postgres-m03:5432/fleet_geofencing_db?sslmode=disable
+      DATABASE_URL: postgres://fleet:${POSTGRES_PASSWORD_M03:?POSTGRES_PASSWORD_M03 is required}@postgres-m03:5432/fleet_geofencing_db?sslmode=disable
       KAFKA_BROKERS: kafka:9092
       REDIS_ADDR: redis:6379
     networks: [fleet]
@@ -513,7 +513,7 @@ services:
       - "4004:4004"
     environment:
       PORT: "4004"
-      DATABASE_URL: postgres://fleet:fleetpass@postgres-m04:5432/fleet_alerts_db?sslmode=disable
+      DATABASE_URL: postgres://fleet:${POSTGRES_PASSWORD_M04:?POSTGRES_PASSWORD_M04 is required}@postgres-m04:5432/fleet_alerts_db?sslmode=disable
       KAFKA_BROKERS: kafka:9092
       REDIS_ADDR: redis:6379
       SMTP_HOST: ""
@@ -546,11 +546,11 @@ services:
       - "4005:4005"
     environment:
       PORT: "4005"
-      DATABASE_URL: postgres://fleet:fleetpass@postgres-m05:5432/fleet_reports_db?sslmode=disable
+      DATABASE_URL: postgres://fleet:${POSTGRES_PASSWORD_M05:?POSTGRES_PASSWORD_M05 is required}@postgres-m05:5432/fleet_reports_db?sslmode=disable
       KAFKA_BROKERS: kafka:9092
       MINIO_ENDPOINT: minio:9000
-      MINIO_ACCESS_KEY: minioadmin
-      MINIO_SECRET_KEY: minioadmin123
+      MINIO_ACCESS_KEY: ${MINIO_ROOT_USER:?MINIO_ROOT_USER is required}
+      MINIO_SECRET_KEY: ${MINIO_ROOT_PASSWORD:?MINIO_ROOT_PASSWORD is required}
       MINIO_BUCKET: fleet-reports
     networks: [fleet]
     depends_on:
@@ -575,12 +575,12 @@ services:
       - "4006:4006"
     environment:
       PORT: "4006"
-      DATABASE_URL: postgres://fleet:fleetpass@postgres-m06:5432/fleet_vehicles_db?sslmode=disable
+      DATABASE_URL: postgres://fleet:${POSTGRES_PASSWORD_M06:?POSTGRES_PASSWORD_M06 is required}@postgres-m06:5432/fleet_vehicles_db?sslmode=disable
       KAFKA_BROKERS: kafka:9092
       REDIS_ADDR: redis:6379
       MINIO_ENDPOINT: minio:9000
-      MINIO_ACCESS_KEY: minioadmin
-      MINIO_SECRET_KEY: minioadmin123
+      MINIO_ACCESS_KEY: ${MINIO_ROOT_USER:?MINIO_ROOT_USER is required}
+      MINIO_SECRET_KEY: ${MINIO_ROOT_PASSWORD:?MINIO_ROOT_PASSWORD is required}
       MINIO_BUCKET: fleet-documents
     networks: [fleet]
     depends_on:
@@ -605,7 +605,7 @@ services:
       - "4007:4007"
     environment:
       PORT: "4007"
-      DATABASE_URL: postgres://fleet:fleetpass@postgres-m07:5432/fleet_drivers_db?sslmode=disable
+      DATABASE_URL: postgres://fleet:${POSTGRES_PASSWORD_M07:?POSTGRES_PASSWORD_M07 is required}@postgres-m07:5432/fleet_drivers_db?sslmode=disable
       KAFKA_BROKERS: kafka:9092
       REDIS_ADDR: redis:6379
     networks: [fleet]
@@ -631,7 +631,7 @@ services:
       - "4008:4008"
     environment:
       PORT: "4008"
-      DATABASE_URL: postgres://fleet:fleetpass@postgres-m08:5432/fleet_maintenance_db?sslmode=disable
+      DATABASE_URL: postgres://fleet:${POSTGRES_PASSWORD_M08:?POSTGRES_PASSWORD_M08 is required}@postgres-m08:5432/fleet_maintenance_db?sslmode=disable
       KAFKA_BROKERS: kafka:9092
       REDIS_ADDR: redis:6379
     networks: [fleet]
@@ -657,7 +657,7 @@ services:
       - "4009:4009"
     environment:
       PORT: "4009"
-      DATABASE_URL: postgres://fleet:fleetpass@postgres-m09:5432/fleet_fuel_db?sslmode=disable
+      DATABASE_URL: postgres://fleet:${POSTGRES_PASSWORD_M09:?POSTGRES_PASSWORD_M09 is required}@postgres-m09:5432/fleet_fuel_db?sslmode=disable
       KAFKA_BROKERS: kafka:9092
       REDIS_ADDR: redis:6379
     networks: [fleet]
@@ -683,7 +683,7 @@ services:
       - "4010:4010"
     environment:
       PORT: "4010"
-      DATABASE_URL: postgres://fleet:fleetpass@postgres-m10:5432/fleet_tenants_db?sslmode=disable
+      DATABASE_URL: postgres://fleet:${POSTGRES_PASSWORD_M10:?POSTGRES_PASSWORD_M10 is required}@postgres-m10:5432/fleet_tenants_db?sslmode=disable
       KAFKA_BROKERS: kafka:9092
       REDIS_ADDR: redis:6379
     networks: [fleet]
@@ -709,7 +709,7 @@ services:
       - "4011:4011"
     environment:
       PORT: "4011"
-      DATABASE_URL: postgres://fleet:fleetpass@postgres-m11:5432/fleet_users_db?sslmode=disable
+      DATABASE_URL: postgres://fleet:${POSTGRES_PASSWORD_M11:?POSTGRES_PASSWORD_M11 is required}@postgres-m11:5432/fleet_users_db?sslmode=disable
       JWT_PRIVATE_KEY_PATH: /run/secrets/jwt_private
       JWT_PUBLIC_KEY_PATH: /run/secrets/jwt_public
       KAFKA_BROKERS: kafka:9092
@@ -740,7 +740,7 @@ services:
       - "4012:4012"
     environment:
       PORT: "4012"
-      DATABASE_URL: postgres://fleet:fleetpass@postgres-m12:5432/fleet_devices_db?sslmode=disable
+      DATABASE_URL: postgres://fleet:${POSTGRES_PASSWORD_M12:?POSTGRES_PASSWORD_M12 is required}@postgres-m12:5432/fleet_devices_db?sslmode=disable
       KAFKA_BROKERS: kafka:9092
       REDIS_ADDR: redis:6379
     networks: [fleet]
@@ -766,7 +766,7 @@ services:
       - "4013:4013"
     environment:
       PORT: "4013"
-      DATABASE_URL: postgres://fleet:fleetpass@postgres-m13:5432/fleet_security_db?sslmode=disable
+      DATABASE_URL: postgres://fleet:${POSTGRES_PASSWORD_M13:?POSTGRES_PASSWORD_M13 is required}@postgres-m13:5432/fleet_security_db?sslmode=disable
       KAFKA_BROKERS: kafka:9092
       REDIS_ADDR: redis:6379
     networks: [fleet]
@@ -792,7 +792,7 @@ services:
       - "4014:4014"
     environment:
       PORT: "4014"
-      DATABASE_URL: postgres://fleet:fleetpass@postgres-m14:5432/fleet_billing_db?sslmode=disable
+      DATABASE_URL: postgres://fleet:${POSTGRES_PASSWORD_M14:?POSTGRES_PASSWORD_M14 is required}@postgres-m14:5432/fleet_billing_db?sslmode=disable
       KAFKA_BROKERS: kafka:9092
       STRIPE_SECRET_KEY: ${STRIPE_SECRET_KEY:-sk_test_placeholder}
       STRIPE_WEBHOOK_SECRET: ${STRIPE_WEBHOOK_SECRET:-whsec_placeholder}
@@ -819,9 +819,9 @@ services:
       - "4015:4015"
     environment:
       PORT: "4015"
-      DATABASE_URL: postgres://fleet:fleetpass@postgres-m15:5432/fleet_admin_db?sslmode=disable
+      DATABASE_URL: postgres://fleet:${POSTGRES_PASSWORD_M15:?POSTGRES_PASSWORD_M15 is required}@postgres-m15:5432/fleet_admin_db?sslmode=disable
       KAFKA_BROKERS: kafka:9092
-      ADMIN_JWT_SECRET: ${ADMIN_JWT_SECRET:-super-admin-secret-change-in-prod}
+      ADMIN_JWT_SECRET: ${ADMIN_JWT_SECRET:?ADMIN_JWT_SECRET is required}
     networks: [fleet]
     depends_on:
       postgres-m15:
@@ -845,7 +845,7 @@ services:
       - "4016:4016"
     environment:
       PORT: "4016"
-      DATABASE_URL: postgres://fleet:fleetpass@postgres-m16:5432/fleet_activity_db?sslmode=disable
+      DATABASE_URL: postgres://fleet:${POSTGRES_PASSWORD_M16:?POSTGRES_PASSWORD_M16 is required}@postgres-m16:5432/fleet_activity_db?sslmode=disable
       KAFKA_BROKERS: kafka:9092
       REDIS_ADDR: redis:6379
     networks: [fleet]
@@ -871,7 +871,7 @@ services:
       - "4017:4017"
     environment:
       PORT: "4017"
-      DATABASE_URL: postgres://fleet:fleetpass@postgres-m17:5432/fleet_roadmap_db?sslmode=disable
+      DATABASE_URL: postgres://fleet:${POSTGRES_PASSWORD_M17:?POSTGRES_PASSWORD_M17 is required}@postgres-m17:5432/fleet_roadmap_db?sslmode=disable
       KAFKA_BROKERS: kafka:9092
     networks: [fleet]
     depends_on:

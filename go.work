@@ -1,6 +1,7 @@
 go 1.23.0
 
 use (
+	./api-service
 	./gateway
 	./pkg
 	./protocols
@@ -22,4 +23,6 @@ use (
 	./services/m16-activity-log
 	./services/m17-roadmap
 	./shared
+	./stream-processor
+	./websocket-service
 )

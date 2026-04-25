@@ -153,7 +153,8 @@ func (h *DeviceHandler) Update(c *gin.Context) {
 		deviceID, tenantID, body.Name, body.VehicleID,
 	)
 	if err != nil {
-		respondError(c, http.StatusInternalServerError, err.Error())
+		h.logger.Error("device update", zap.Error(err))
+		respondError(c, http.StatusInternalServerError, "internal server error")
 		return
 	}
 	c.JSON(http.StatusNoContent, nil)
@@ -216,7 +217,8 @@ func (h *DeviceHandler) History(c *gin.Context) {
 		deviceID, tenantID, from, to,
 	)
 	if err != nil {
-		respondError(c, http.StatusInternalServerError, err.Error())
+		h.logger.Error("device history query", zap.Error(err))
+		respondError(c, http.StatusInternalServerError, "internal server error")
 		return
 	}
 	defer rows.Close()
@@ -265,7 +267,8 @@ func (h *DeviceHandler) Trips(c *gin.Context) {
 		deviceID, tenantID, from, to,
 	)
 	if err != nil {
-		respondError(c, http.StatusInternalServerError, err.Error())
+		h.logger.Error("device trips query", zap.Error(err))
+		respondError(c, http.StatusInternalServerError, "internal server error")
 		return
 	}
 	defer rows.Close()

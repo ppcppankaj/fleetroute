@@ -265,22 +265,123 @@ func (h *ReportHandler) Trips(c *gin.Context) {
 	respondOK(c, trips)
 }
 
-func (h *ReportHandler) Fuel(c *gin.Context) { 
-	respondOK(c, []map[string]any{
-		{"date": "2023-10-01", "liters": 45.2, "cost": 65.0},
-		{"date": "2023-10-02", "liters": 12.5, "cost": 18.0},
-	})
+func (h *ReportHandler) Fuel(c *gin.Context) {
+	tenantID := pkgauth.TenantID(c)
+	from, to := parseTimeRange(c)
+
+	rows, err := h.pool.Query(c.Request.Context(),
+		`SELECT DATE(filled_at) AS date,
+		        COALESCE(SUM(liters), 0)     AS total_liters,
+		        COALESCE(SUM(total_cost), 0) AS total_cost
+		 FROM fuel_logs
+		 WHERE tenant_id=$1 AND filled_at BETWEEN $2 AND $3
+		 GROUP BY DATE(filled_at)
+		 ORDER BY date DESC LIMIT 90`,
+		tenantID, from, to,
+	)
+	if err != nil {
+		h.logger.Error("report fuel", zap.Error(err))
+		respondError(c, http.StatusInternalServerError, "internal server error")
+		return
+	}
+	defer rows.Close()
+	var items []map[string]any
+	for rows.Next() {
+		vals, _ := rows.Values()
+		if len(vals) >= 3 {
+			items = append(items, map[string]any{
+				"date":         vals[0],
+				"total_liters": vals[1],
+				"total_cost":   vals[2],
+			})
+		}
+	}
+	respondOK(c, items)
 }
 
 func (h *ReportHandler) DriverBehavior(c *gin.Context) {
-	respondOK(c, []map[string]any{
-		{"driver": "John Doe", "score": 92, "events": 3},
-		{"driver": "Jane Smith", "score": 85, "events": 8},
-	})
+	tenantID := pkgauth.TenantID(c)
+	from, to := parseTimeRange(c)
+
+	rows, err := h.pool.Query(c.Request.Context(),
+		`SELECT d.id, d.name,
+		        COUNT(t.id)::int                         AS trips,
+		        COALESCE(SUM(t.harsh_accel), 0)::int     AS harsh_accel,
+		        COALESCE(SUM(t.harsh_brake), 0)::int     AS harsh_brake,
+		        COALESCE(SUM(t.overspeed_count), 0)::int AS overspeed
+		 FROM drivers d
+		 LEFT JOIN trips t ON t.driver_id = d.id
+		           AND t.tenant_id = $1
+		           AND t.started_at BETWEEN $2 AND $3
+		 WHERE d.tenant_id=$1 AND d.deleted_at IS NULL
+		 GROUP BY d.id, d.name
+		 ORDER BY overspeed DESC, harsh_accel DESC LIMIT 100`,
+		tenantID, from, to,
+	)
+	if err != nil {
+		h.logger.Error("report driver behavior", zap.Error(err))
+		respondError(c, http.StatusInternalServerError, "internal server error")
+		return
+	}
+	defer rows.Close()
+	var items []map[string]any
+	for rows.Next() {
+		vals, _ := rows.Values()
+		if len(vals) >= 6 {
+			hAccel, _ := vals[3].(int64)
+			hBrake, _ := vals[4].(int64)
+			overspeed, _ := vals[5].(int64)
+			score := 100 - int(hAccel*2+hBrake*2+overspeed)
+			if score < 0 {
+				score = 0
+			}
+			items = append(items, map[string]any{
+				"driver_id":   vals[0],
+				"driver":      vals[1],
+				"trips":       vals[2],
+				"harsh_accel": hAccel,
+				"harsh_brake": hBrake,
+				"overspeed":   overspeed,
+				"score":       score,
+			})
+		}
+	}
+	respondOK(c, items)
 }
 
-func (h *ReportHandler) GeofenceViolations(c *gin.Context) { 
-	respondOK(c, []map[string]any{})
+func (h *ReportHandler) GeofenceViolations(c *gin.Context) {
+	tenantID := pkgauth.TenantID(c)
+	from, to := parseTimeRange(c)
+
+	rows, err := h.pool.Query(c.Request.Context(),
+		`SELECT ge.id, ge.device_id, g.name AS geofence_name,
+		        ge.event_type, ge.occurred_at
+		 FROM geofence_events ge
+		 JOIN geofences g ON g.id = ge.geofence_id
+		 WHERE ge.tenant_id=$1 AND ge.occurred_at BETWEEN $2 AND $3
+		 ORDER BY ge.occurred_at DESC LIMIT 200`,
+		tenantID, from, to,
+	)
+	if err != nil {
+		h.logger.Error("report geofence violations", zap.Error(err))
+		respondError(c, http.StatusInternalServerError, "internal server error")
+		return
+	}
+	defer rows.Close()
+	var items []map[string]any
+	for rows.Next() {
+		vals, _ := rows.Values()
+		if len(vals) >= 5 {
+			items = append(items, map[string]any{
+				"id":             vals[0],
+				"device_id":      vals[1],
+				"geofence_name":  vals[2],
+				"event_type":     vals[3],
+				"occurred_at":    vals[4],
+			})
+		}
+	}
+	respondOK(c, items)
 }
 
 // ── DriverHandler ─────────────────────────────────────────────────────────────

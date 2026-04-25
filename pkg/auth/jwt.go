@@ -2,7 +2,9 @@
 package auth
 
 import (
+	"crypto/rand"
 	"crypto/rsa"
+	"encoding/hex"
 	"errors"
 	"fmt"
 	"os"
@@ -78,11 +80,16 @@ func (m *Manager) GenerateRefresh(userID, tenantID string, role Role) (string, e
 
 func (m *Manager) sign(userID, tenantID string, role Role, ttl time.Duration) (string, error) {
 	now := time.Now()
+	jti, err := generateJTI()
+	if err != nil {
+		return "", fmt.Errorf("generate jti: %w", err)
+	}
 	claims := Claims{
 		UserID:   userID,
 		TenantID: tenantID,
 		Role:     role,
 		RegisteredClaims: jwt.RegisteredClaims{
+			ID:        jti,
 			IssuedAt:  jwt.NewNumericDate(now),
 			ExpiresAt: jwt.NewNumericDate(now.Add(ttl)),
 			Issuer:    "gpsgo",
@@ -90,6 +97,16 @@ func (m *Manager) sign(userID, tenantID string, role Role, ttl time.Duration) (s
 	}
 	token := jwt.NewWithClaims(jwt.SigningMethodRS256, claims)
 	return token.SignedString(m.privateKey)
+}
+
+// generateJTI creates a cryptographically random 16-byte hex string for use
+// as the JWT ID (jti claim), enabling per-token revocation.
+func generateJTI() (string, error) {
+	b := make([]byte, 16)
+	if _, err := rand.Read(b); err != nil {
+		return "", err
+	}
+	return hex.EncodeToString(b), nil
 }
 
 // Validate parses and validates a token string, returning its claims.

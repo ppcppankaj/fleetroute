@@ -8,22 +8,25 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/redis/go-redis/v9"
 	"go.uber.org/zap"
 	"golang.org/x/crypto/bcrypt"
 
 	pkgauth "gpsgo/pkg/auth"
+	pkgdb "gpsgo/pkg/db"
 )
 
 // AuthHandler handles login, token refresh, and logout.
 type AuthHandler struct {
 	pool    *pgxpool.Pool
+	rdb     *redis.Client
 	authMgr *pkgauth.Manager
 	logger  *zap.Logger
 }
 
 // NewAuthHandler constructs an AuthHandler.
-func NewAuthHandler(pool *pgxpool.Pool, authMgr *pkgauth.Manager, logger *zap.Logger) *AuthHandler {
-	return &AuthHandler{pool: pool, authMgr: authMgr, logger: logger}
+func NewAuthHandler(pool *pgxpool.Pool, rdb *redis.Client, authMgr *pkgauth.Manager, logger *zap.Logger) *AuthHandler {
+	return &AuthHandler{pool: pool, rdb: rdb, authMgr: authMgr, logger: logger}
 }
 
 // loginRequest represents the login request body.
@@ -131,6 +134,12 @@ func (h *AuthHandler) Refresh(c *gin.Context) {
 		return
 	}
 
+	// Check Redis denylist — token may have been revoked via logout.
+	if h.isRevoked(c.Request.Context(), claims.RegisteredClaims.ID) {
+		respondError(c, http.StatusUnauthorized, "refresh token has been revoked")
+		return
+	}
+
 	access, err := h.authMgr.GenerateAccess(claims.UserID, claims.TenantID, claims.Role)
 	if err != nil {
 		respondError(c, http.StatusInternalServerError, "token generation failed")
@@ -142,6 +151,9 @@ func (h *AuthHandler) Refresh(c *gin.Context) {
 		return
 	}
 
+	// Rotate: revoke the old refresh token immediately.
+	h.revokeToken(c.Request.Context(), claims.RegisteredClaims.ID, time.Until(claims.ExpiresAt.Time))
+
 	c.JSON(http.StatusOK, gin.H{
 		"data": gin.H{
 			"access_token":  access,
@@ -152,13 +164,55 @@ func (h *AuthHandler) Refresh(c *gin.Context) {
 }
 
 // Logout godoc
-// @Summary      Logout (client-side token discard)
+// @Summary      Revoke refresh token and logout
 // @Tags         auth
 // @Router       /auth/logout [post]
 func (h *AuthHandler) Logout(c *gin.Context) {
-	// JWT is stateless — refresh token rotation invalidates old tokens.
-	// Optionally, add token to a Redis deny-list here for instant revocation.
+	var body struct {
+		RefreshToken string `json:"refresh_token"`
+	}
+	// Best-effort parse — if no token is provided, still return 200.
+	if err := c.ShouldBindJSON(&body); err == nil && body.RefreshToken != "" {
+		claims, err := h.authMgr.Validate(body.RefreshToken)
+		if err == nil && claims.RegisteredClaims.ID != "" {
+			ttl := time.Until(claims.ExpiresAt.Time)
+			if ttl > 0 {
+				h.revokeToken(c.Request.Context(), claims.RegisteredClaims.ID, ttl)
+			}
+		}
+	}
 	c.JSON(http.StatusOK, gin.H{"data": gin.H{"status": "logged_out"}})
+}
+
+// revokeToken adds the token jti to the Redis denylist with a TTL matching
+// the token's remaining validity window.
+func (h *AuthHandler) revokeToken(ctx context.Context, jti string, ttl time.Duration) {
+	if jti == "" || ttl <= 0 {
+		return
+	}
+	if err := h.rdb.Set(ctx, pkgdb.KeyRevoked(jti), "1", ttl).Err(); err != nil {
+		h.logger.Warn("failed to add token to revocation denylist",
+			zap.String("jti", jti),
+			zap.Error(err),
+		)
+	}
+}
+
+// isRevoked returns true if the jti is present in the Redis denylist.
+// Fails open on Redis error to avoid locking out users during Redis downtime.
+func (h *AuthHandler) isRevoked(ctx context.Context, jti string) bool {
+	if jti == "" {
+		return false
+	}
+	exists, err := h.rdb.Exists(ctx, pkgdb.KeyRevoked(jti)).Result()
+	if err != nil {
+		h.logger.Warn("revocation denylist check failed — failing open",
+			zap.String("jti", jti),
+			zap.Error(err),
+		)
+		return false
+	}
+	return exists > 0
 }
 
 // ── Shared response helpers ────────────────────────────────────────────────────

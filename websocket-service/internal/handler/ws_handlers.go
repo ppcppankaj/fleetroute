@@ -2,6 +2,7 @@ package handler
 
 import (
 	"net/http"
+	"os"
 	"strings"
 
 	"github.com/gorilla/websocket"
@@ -11,11 +12,34 @@ import (
 	"gpsgo/websocket-service/internal/hub"
 )
 
+// buildOriginAllowlist parses WS_ALLOWED_ORIGINS (comma-separated) into a
+// fast-lookup map. Empty env var = reject all browser origins (safe default).
+func buildOriginAllowlist() map[string]bool {
+	allowed := make(map[string]bool)
+	raw := os.Getenv("WS_ALLOWED_ORIGINS")
+	if raw == "" {
+		return allowed
+	}
+	for _, o := range strings.Split(raw, ",") {
+		if t := strings.TrimSpace(o); t != "" {
+			allowed[t] = true
+		}
+	}
+	return allowed
+}
+
+var wsAllowedOrigins = buildOriginAllowlist()
+
 var upgrader = websocket.Upgrader{
 	ReadBufferSize:  1024,
 	WriteBufferSize: 4096,
 	CheckOrigin: func(r *http.Request) bool {
-		return true // TODO: validate origin in production
+		origin := r.Header.Get("Origin")
+		// Allow requests with no Origin header (same-origin, server-to-server).
+		if origin == "" {
+			return true
+		}
+		return wsAllowedOrigins[origin]
 	},
 }
 

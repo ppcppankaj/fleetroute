@@ -3,6 +3,8 @@ package router
 
 import (
 	"net/http"
+	"os"
+	"strings"
 	"time"
 
 	"github.com/gin-contrib/cors"
@@ -26,11 +28,14 @@ func New(
 	gin.SetMode(gin.ReleaseMode)
 	r := gin.New()
 
+	// ── CORS — read allowed origins from environment (no wildcard default) ────
+	allowedOrigins := parseCORSOrigins(os.Getenv("CORS_ALLOWED_ORIGINS"))
+
 	// ── Global middleware ─────────────────────────────────────────────────────
 	r.Use(middleware.RequestLogger(logger))
 	r.Use(gin.Recovery())
 	r.Use(cors.New(cors.Config{
-		AllowOrigins:     []string{"*"},
+		AllowOrigins:     allowedOrigins,
 		AllowMethods:     []string{"GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"},
 		AllowHeaders:     []string{"Origin", "Authorization", "Content-Type", "X-Tenant-ID"},
 		ExposeHeaders:    []string{"Content-Length", "X-Request-ID"},
@@ -51,7 +56,7 @@ func New(
 	})
 
 	// ── Handlers ──────────────────────────────────────────────────────────────
-	authHandler     := handler.NewAuthHandler(pool, authMgr, logger)
+	authHandler     := handler.NewAuthHandler(pool, rdb, authMgr, logger)
 	deviceHandler   := handler.NewDeviceHandler(pool, rdb, logger)
 	vehicleHandler  := handler.NewVehicleHandler(pool, logger)
 	geofenceHandler := handler.NewGeofenceHandler(pool, logger)
@@ -80,8 +85,8 @@ func New(
 	// Protected routes — require valid JWT
 	protected := v1.Group("")
 	protected.Use(pkgauth.Middleware(authMgr))
-	protected.Use(middleware.RLS())
-	protected.Use(middleware.RateLimit(rdb))
+	protected.Use(middleware.RLS(pool, logger))
+	protected.Use(middleware.RateLimit(rdb, logger))
 	{
 		// Devices
 		devices := protected.Group("/devices")
@@ -142,8 +147,7 @@ func New(
 		fuel.GET("/anomalies", fuelHandler.ListAnomalies)
 		fuel.POST("/anomalies/:id/confirm", fuelHandler.ConfirmAnomaly)
 
-
-		// Video Telematics (M15)
+		// Video Telematics (M15) — stub, returns 501 until implemented
 		video := protected.Group("/video")
 		videoHandler := handler.NewVideoHandler(pool, logger)
 		video.GET("/events", videoHandler.ListEvents)
@@ -192,4 +196,22 @@ func New(
 	}
 
 	return r
+}
+
+// parseCORSOrigins splits a comma-separated origin allowlist from the
+// CORS_ALLOWED_ORIGINS environment variable. Returns a slice with a single
+// empty string (which gin-cors treats as "no origins allowed") if unset,
+// ensuring the service is restrictive by default.
+func parseCORSOrigins(raw string) []string {
+	if raw == "" {
+		return []string{}
+	}
+	parts := strings.Split(raw, ",")
+	out := make([]string, 0, len(parts))
+	for _, p := range parts {
+		if trimmed := strings.TrimSpace(p); trimmed != "" {
+			out = append(out, trimmed)
+		}
+	}
+	return out
 }

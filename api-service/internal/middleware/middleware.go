@@ -9,6 +9,8 @@ import (
 	"go.uber.org/zap"
 
 	pkgauth "gpsgo/pkg/auth"
+	pkgdb "gpsgo/pkg/db"
+	"github.com/jackc/pgx/v5/pgxpool"
 )
 
 // RequestLogger logs each HTTP request with method, path, status, and latency.
@@ -26,24 +28,50 @@ func RequestLogger(logger *zap.Logger) gin.HandlerFunc {
 	}
 }
 
-// RLS injects the tenant_id from the JWT claims into the request context
-// so all DB queries automatically scope to the correct tenant.
-func RLS() gin.HandlerFunc {
+// RLS begins a PostgreSQL transaction, executes SET LOCAL app.tenant_id, and
+// stores the transaction on the Gin context for all downstream handlers to use.
+// This activates the per-tenant Row Level Security policies defined in migrations.
+//
+// The transaction is always rolled back on request completion (via defer).
+// Write handlers must call tx.Commit(ctx) themselves via pkgdb.TxFromContext(c).
+func RLS(pool *pgxpool.Pool, logger *zap.Logger) gin.HandlerFunc {
 	return func(c *gin.Context) {
-		// tenant_id is set by the JWT middleware — ensure it's present
-		if pkgauth.TenantID(c) == "" {
+		tenantID := pkgauth.TenantID(c)
+		if tenantID == "" {
 			c.AbortWithStatus(403)
 			return
 		}
-		// In production: SET LOCAL app.tenant_id = '<tenantID>' on the DB connection
-		// This enforces PostgreSQL RLS policies per request.
+
+		ctx := c.Request.Context()
+
+		// Begin a transaction — SET LOCAL scopes to the transaction lifetime.
+		tx, err := pool.Begin(ctx)
+		if err != nil {
+			logger.Error("rls: begin transaction", zap.Error(err))
+			c.AbortWithStatus(500)
+			return
+		}
+		// Always roll back on completion. Write handlers commit explicitly.
+		defer tx.Rollback(ctx) //nolint:errcheck
+
+		// Activate RLS: PostgreSQL policies read current_setting('app.tenant_id').
+		if _, err := tx.Exec(ctx, "SET LOCAL app.tenant_id = $1", tenantID); err != nil {
+			logger.Error("rls: set tenant_id", zap.Error(err))
+			c.AbortWithStatus(500)
+			return
+		}
+
+		// Store transaction in Gin context so handlers can retrieve it.
+		pkgdb.SetTx(c, tx)
 		c.Next()
 	}
 }
 
 // RateLimit implements a simple per-tenant token bucket using Redis.
 // Limits: 1000 req/min per tenant.
-func RateLimit(rdb *redis.Client) gin.HandlerFunc {
+// On Redis failure, the middleware fails open (allows the request) but logs
+// a warning so the operational team is alerted via Loki/Grafana.
+func RateLimit(rdb *redis.Client, logger *zap.Logger) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		tenantID := pkgauth.TenantID(c)
 		if tenantID == "" {
@@ -56,7 +84,11 @@ func RateLimit(rdb *redis.Client) gin.HandlerFunc {
 
 		count, err := rdb.Incr(ctx, key).Result()
 		if err != nil {
-			c.Next() // fail open on Redis error
+			logger.Warn("rate limiter fail-open: Redis unavailable — rate limiting disabled for this request",
+				zap.String("tenant_id", tenantID),
+				zap.Error(err),
+			)
+			c.Next()
 			return
 		}
 		if count == 1 {

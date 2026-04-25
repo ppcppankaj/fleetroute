@@ -55,10 +55,11 @@ type Pipeline struct {
 	enrichers []Enricher
 	logger    *zap.Logger
 
-	tripMachine *TripMachine
-	geoEngine   *GeofenceEngine
-	rulesEngine *RulesEngine
-	notifMgr    *NotificationManager
+	registry     *DeviceRegistry
+	tripMachine  *TripMachine
+	geoEngine    *GeofenceEngine
+	rulesEngine  *RulesEngine
+	notifMgr     *NotificationManager
 	fuelDetector *FuelAnomalyDetector
 }
 
@@ -66,6 +67,7 @@ type Pipeline struct {
 func NewPipeline(pool *pgxpool.Pool, rdb *redis.Client, logger *zap.Logger) *Pipeline {
 	p := &Pipeline{
 		logger:       logger,
+		registry:     NewDeviceRegistry(pool, rdb, logger),
 		tripMachine:  NewTripMachine(pool, rdb, logger),
 		geoEngine:    NewGeofenceEngine(pool, logger),
 		rulesEngine:  NewRulesEngine(pool, rdb, logger),
@@ -84,9 +86,12 @@ func NewPipeline(pool *pgxpool.Pool, rdb *redis.Client, logger *zap.Logger) *Pip
 
 // Process converts a raw parsed record into an enriched record.
 func (p *Pipeline) Process(ctx context.Context, raw protocol.ParsedRecord) *EnrichedRecord {
+	// Look up the real tenant_id for this device from cache / DB.
+	tenantID := p.registry.Lookup(ctx, raw.DeviceID)
+
 	rec := &EnrichedRecord{
 		DeviceID:   raw.DeviceID,
-		TenantID:   raw.DeviceID, // TODO: look up from device registry
+		TenantID:   tenantID,
 		Timestamp:  time.UnixMilli(raw.Timestamp).UTC(),
 		ReceivedAt: time.Now().UTC(),
 		Lat:        raw.Lat,

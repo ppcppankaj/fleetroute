@@ -45,7 +45,8 @@ func (h *FuelHandler) ListFuelLogs(c *gin.Context) {
 
 	rows, err := h.pool.Query(c.Request.Context(), q, args...)
 	if err != nil {
-		respondError(c, http.StatusInternalServerError, err.Error())
+		h.logger.Error("fuel logs list", zap.Error(err))
+		respondError(c, http.StatusInternalServerError, "internal server error")
 		return
 	}
 	defer rows.Close()
@@ -104,7 +105,8 @@ func (h *FuelHandler) CreateFuelLog(c *gin.Context) {
 		body.OdometerKm, body.StationName, body.FillType, body.FilledAt, body.ReceiptURL,
 	).Scan(&id)
 	if err != nil {
-		respondError(c, http.StatusInternalServerError, err.Error())
+		h.logger.Error("fuel log create", zap.Error(err))
+		respondError(c, http.StatusInternalServerError, "internal server error")
 		return
 	}
 	respondCreated(c, gin.H{"id": id})
@@ -130,7 +132,8 @@ func (h *FuelHandler) FuelSummary(c *gin.Context) {
 		GROUP BY fl.vehicle_id, v.registration
 		ORDER BY total_liters DESC`, tenantID, from, to)
 	if err != nil {
-		respondError(c, http.StatusInternalServerError, err.Error())
+		h.logger.Error("fuel summary query", zap.Error(err))
+		respondError(c, http.StatusInternalServerError, "internal server error")
 		return
 	}
 	defer rows.Close()
@@ -176,7 +179,8 @@ func (h *FuelHandler) ListAnomalies(c *gin.Context) {
 
 	rows, err := h.pool.Query(c.Request.Context(), q, args...)
 	if err != nil {
-		respondError(c, http.StatusInternalServerError, err.Error())
+		h.logger.Error("fuel anomalies list", zap.Error(err))
+		respondError(c, http.StatusInternalServerError, "internal server error")
 		return
 	}
 	defer rows.Close()
@@ -207,7 +211,10 @@ func (h *FuelHandler) ConfirmAnomaly(c *gin.Context) {
 	var body struct {
 		Notes string `json:"notes"`
 	}
-	c.ShouldBindJSON(&body)
+	if err := c.ShouldBindJSON(&body); err != nil {
+		respondError(c, http.StatusBadRequest, err.Error())
+		return
+	}
 
 	_, err := h.pool.Exec(c.Request.Context(), `
 		UPDATE fuel_anomalies SET
@@ -216,7 +223,8 @@ func (h *FuelHandler) ConfirmAnomaly(c *gin.Context) {
 		WHERE id = $1 AND tenant_id = $2`,
 		id, tenantID, userID, body.Notes)
 	if err != nil {
-		respondError(c, http.StatusInternalServerError, err.Error())
+		h.logger.Error("fuel anomaly confirm", zap.Error(err))
+		respondError(c, http.StatusInternalServerError, "internal server error")
 		return
 	}
 	c.JSON(http.StatusNoContent, nil)
@@ -295,7 +303,8 @@ func (h *RuleHandler) CreateFromDB(c *gin.Context) {
 		body.SpeedLimit, body.CooldownS, body.Description,
 	).Scan(&id)
 	if err != nil {
-		respondError(c, http.StatusInternalServerError, err.Error())
+		h.logger.Error("alert rule create", zap.Error(err))
+		respondError(c, http.StatusInternalServerError, "internal server error")
 		return
 	}
 	respondCreated(c, gin.H{"id": id})
@@ -311,7 +320,10 @@ func (h *RuleHandler) UpdateFromDB(c *gin.Context) {
 		CooldownS  *int   `json:"cooldown_s"`
 		Enabled    *bool  `json:"enabled"`
 	}
-	c.ShouldBindJSON(&body)
+	if err := c.ShouldBindJSON(&body); err != nil {
+		respondError(c, http.StatusBadRequest, err.Error())
+		return
+	}
 	_, err := h.pool.Exec(c.Request.Context(), `
 		UPDATE alert_rules SET
 		  name       = COALESCE(NULLIF($3,''), name),
@@ -323,7 +335,8 @@ func (h *RuleHandler) UpdateFromDB(c *gin.Context) {
 		WHERE id=$1 AND tenant_id=$2 AND deleted_at IS NULL`,
 		id, tenantID, body.Name, body.Severity, body.SpeedLimit, body.CooldownS, body.Enabled)
 	if err != nil {
-		respondError(c, http.StatusInternalServerError, err.Error())
+		h.logger.Error("alert rule update", zap.Error(err))
+		respondError(c, http.StatusInternalServerError, "internal server error")
 		return
 	}
 	c.JSON(http.StatusNoContent, nil)
